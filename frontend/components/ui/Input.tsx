@@ -1,0 +1,20 @@
+import type { InputHTMLAttributes } from "react";
+
+type InputProps = InputHTMLAttributes<HTMLInputElement> & {
+  label: string;
+  error?: string;
+};
+
+export function Input({ label, error, className = "", ...props }: InputProps) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-muted">{label}</span>
+      <input
+        className={`w-full rounded-md border border-line bg-[#0d1010] px-3 py-3 text-text outline-none transition focus:border-accent ${className}`}
+        {...props}
+      />
+      {error ? <span className="mt-1 block text-sm text-red-300">{error}</span> : null}
+    </label>
+  );
+}
+

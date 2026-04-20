@@ -1,0 +1,29 @@
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+from app.config import get_settings
+from app.database import SessionLocal, create_db_and_tables
+from app.scheduler.jobs import collect_rss_feeds_job, generate_daily_briefing_job
+from app.services.seed_data import seed_initial_data
+
+
+def main() -> None:
+    settings = get_settings()
+    create_db_and_tables()
+    with SessionLocal() as db:
+        seed_initial_data(db)
+
+    scheduler = BlockingScheduler(timezone=settings.timezone)
+    scheduler.add_job(collect_rss_feeds_job, "cron", minute=5, id="collect_rss_feeds", replace_existing=True)
+    scheduler.add_job(
+        generate_daily_briefing_job,
+        CronTrigger(hour=6, minute=30, timezone=settings.timezone),
+        id="generate_daily_briefing",
+        replace_existing=True,
+    )
+    scheduler.start()
+
+
+if __name__ == "__main__":
+    main()
+

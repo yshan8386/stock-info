@@ -1,0 +1,65 @@
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ysj_brief
+      POSTGRES_USER: ${DB_USER:-ysj}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-pass}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ysj} -d ysj_brief"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://ysj:${DB_PASSWORD:-pass}@postgres:5432/ysj_brief
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      COOKIE_SECURE: "false"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      MOCK_CLAUDE: "true"
+      TZ: Asia/Seoul
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["python", "-m", "app.scheduler.worker"]
+    environment:
+      DATABASE_URL: postgresql://ysj:${DB_PASSWORD:-pass}@postgres:5432/ysj_brief
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
+      COOKIE_SECURE: "false"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      MOCK_CLAUDE: "true"
+      TZ: Asia/Seoul
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+
