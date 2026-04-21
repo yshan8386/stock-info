@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from email.utils import parsedate_to_datetime
 from html import unescape
 import re
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models import News, RssFeed
 
 USER_AGENT = "ysj.brief feed validator"
+RECENT_ENTRY_WINDOW = timedelta(hours=1)
 TITLE_PREFIX_PATTERN = re.compile(r"^(Show|Ask|Tell)\s+GN:\s*", re.IGNORECASE)
 HTML_PATTERN = re.compile(r"<[^>]+>")
 WHITESPACE_PATTERN = re.compile(r"\s+")
@@ -20,9 +21,20 @@ def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
     try:
-        return parsedate_to_datetime(value)
+        parsed = parsedate_to_datetime(value)
     except (TypeError, ValueError):
         return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def is_recent_entry(published_at: datetime | None, now: datetime, window: timedelta = RECENT_ENTRY_WINDOW) -> bool:
+    if published_at is None:
+        return False
+    normalized_now = now.astimezone(UTC) if now.tzinfo else now.replace(tzinfo=UTC)
+    normalized_published_at = published_at.astimezone(UTC) if published_at.tzinfo else published_at.replace(tzinfo=UTC)
+    return normalized_now - window <= normalized_published_at <= normalized_now
 
 
 def clean_feed_title(title: str) -> str:
@@ -39,7 +51,7 @@ def clean_feed_excerpt(value: str | None, max_length: int = 400) -> str | None:
     return text[:max_length].rstrip() + ("..." if len(text) > max_length else "")
 
 
-async def fetch_feed(feed: RssFeed) -> tuple[str, list[dict], str | None]:
+async def fetch_feed(feed: RssFeed, now: datetime | None = None) -> tuple[str, list[dict], str | None]:
     try:
         async with httpx.AsyncClient(timeout=10, headers={"User-Agent": USER_AGENT}, follow_redirects=True) as client:
             response = await client.get(feed.url)
@@ -51,10 +63,14 @@ async def fetch_feed(feed: RssFeed) -> tuple[str, list[dict], str | None]:
     if parsed.bozo and not parsed.entries:
         return "failed", [], str(parsed.bozo_exception)
     entries = []
+    fetched_at = now or datetime.now(UTC)
     for entry in parsed.entries[:50]:
         link = entry.get("link")
         title = entry.get("title")
         if not link or not title:
+            continue
+        published_at = _parse_datetime(entry.get("published"))
+        if not is_recent_entry(published_at, fetched_at):
             continue
         excerpt = (
             clean_feed_excerpt(entry.get("summary"))
@@ -68,7 +84,7 @@ async def fetch_feed(feed: RssFeed) -> tuple[str, list[dict], str | None]:
                 "title": clean_feed_title(title),
                 "url": link,
                 "author": entry.get("author"),
-                "published_at": _parse_datetime(entry.get("published")),
+                "published_at": published_at,
                 "content_excerpt": excerpt,
                 "raw_data": {
                     "id": entry.get("id"),
