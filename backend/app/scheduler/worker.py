@@ -15,15 +15,15 @@ def main() -> None:
 
     scheduler = BlockingScheduler(timezone=settings.timezone)
     scheduler.add_job(collect_rss_feeds_job, "cron", minute=5, id="collect_rss_feeds", replace_existing=True)
-    scheduler.add_job(
-        generate_daily_briefing_job,
-        CronTrigger(hour=6, minute=30, timezone=settings.timezone),
-        id="generate_daily_briefing",
-        replace_existing=True,
-    )
+    if settings.scheduled_briefing_enabled:
+        scheduler.add_job(
+            generate_daily_briefing_job,
+            CronTrigger(hour=6, minute=30, timezone=settings.timezone),
+            id="generate_daily_briefing",
+            replace_existing=True,
+        )
     scheduler.start()
 
 
 if __name__ == "__main__":
     main()
-

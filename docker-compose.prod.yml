@@ -24,6 +24,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5}
       MOCK_CLAUDE: ${MOCK_CLAUDE:-false}
+      SCHEDULED_BRIEFING_ENABLED: ${SCHEDULED_BRIEFING_ENABLED:-false}
       TZ: Asia/Seoul
     networks:
       - supabase
@@ -41,6 +42,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5}
       MOCK_CLAUDE: ${MOCK_CLAUDE:-false}
+      SCHEDULED_BRIEFING_ENABLED: ${SCHEDULED_BRIEFING_ENABLED:-false}
       TZ: Asia/Seoul
     networks:
       - supabase

@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     claude_model: str = "claude-haiku-4-5"
     timezone: str = "Asia/Seoul"
     mock_claude: bool = True
+    scheduled_briefing_enabled: bool = False
 
     @field_validator("cors_origins", mode="before")
     @classmethod
