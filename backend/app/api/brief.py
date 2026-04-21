@@ -10,7 +10,7 @@ from app.models import Briefing
 from app.schemas.brief import BriefingArchiveItem, BriefingOut
 from app.services.briefing_generator import generate_daily_briefing
 
-router = APIRouter(prefix="/brief", tags=["brief"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/brief", tags=["brief"])
 
 
 @router.get("/today", response_model=BriefingOut)
@@ -20,7 +20,13 @@ def get_today(db: Session = Depends(get_db)) -> Briefing:
         select(Briefing).where(Briefing.briefing_date == today, Briefing.briefing_type == "daily_morning")
     )
     if briefing is None:
-        briefing = generate_daily_briefing(db, today)
+        briefing = db.scalar(
+            select(Briefing)
+            .where(Briefing.briefing_type == "daily_morning")
+            .order_by(desc(Briefing.briefing_date), desc(Briefing.generated_at))
+        )
+    if briefing is None:
+        raise HTTPException(status_code=404, detail="Briefing not found")
     return briefing
 
 
@@ -61,6 +67,5 @@ def get_by_id(briefing_id: int, db: Session = Depends(get_db)) -> Briefing:
 
 
 @router.post("/regenerate", response_model=BriefingOut)
-def regenerate(db: Session = Depends(get_db)) -> Briefing:
+def regenerate(_: object = Depends(get_current_user), db: Session = Depends(get_db)) -> Briefing:
     return generate_daily_briefing(db, date.today())
-

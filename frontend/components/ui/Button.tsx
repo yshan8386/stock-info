@@ -7,7 +7,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 export function Button({ className = "", variant = "primary", ...props }: ButtonProps) {
   const styles =
     variant === "primary"
-      ? "bg-accent text-white hover:bg-[#0c724f]"
+      ? "bg-text text-white shadow-sm hover:bg-accent"
       : "border border-line bg-panel text-text hover:border-accent hover:bg-accentSoft";
   return (
     <button

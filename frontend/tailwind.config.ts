@@ -5,17 +5,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#f6faf8",
+        background: "#f7f8f4",
         panel: "#ffffff",
-        line: "#dce7e2",
-        text: "#17211d",
-        muted: "#64736d",
-        accent: "#10865f",
-        accentSoft: "#e7f6f0",
-        info: "#246baf",
-        infoSoft: "#e8f1fb",
-        warn: "#a35f00",
-        warnSoft: "#fff4df"
+        line: "#dce2da",
+        text: "#15201b",
+        muted: "#65736b",
+        accent: "#0f8a65",
+        accentSoft: "#e5f5ed",
+        info: "#256fb6",
+        infoSoft: "#e7f0fb",
+        warn: "#9a6500",
+        warnSoft: "#fff3d8",
+        coral: "#b84f45",
+        coralSoft: "#fdecea"
       },
       fontFamily: {
         sans: ["Pretendard", "Inter", "system-ui", "sans-serif"]
