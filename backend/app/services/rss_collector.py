@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from html import unescape
 import re
@@ -61,6 +61,8 @@ async def fetch_feed(feed: RssFeed) -> tuple[str, list[dict], str | None]:
             or clean_feed_excerpt(entry.get("description"))
             or clean_feed_excerpt(entry.get("content", [{}])[0].get("value") if entry.get("content") else None)
         )
+        if not excerpt:
+            continue
         entries.append(
             {
                 "title": clean_feed_title(title),
@@ -84,7 +86,7 @@ async def collect_all_feeds(db: Session) -> dict[str, int]:
     failed = 0
     for feed in feeds:
         status, entries, error = await fetch_feed(feed)
-        feed.last_fetched_at = datetime.now()
+        feed.last_fetched_at = datetime.now(UTC)
         feed.last_fetched_status = status
         feed.last_error = error
         if status != "success":

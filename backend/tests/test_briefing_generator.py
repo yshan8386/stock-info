@@ -23,7 +23,6 @@ def _news_item(
         category=category,
         author=None,
         published_at=now - timedelta(hours=hours_ago),
-        content=None,
         content_excerpt=excerpt,
         raw_data=None,
         collected_at=now - timedelta(minutes=5),

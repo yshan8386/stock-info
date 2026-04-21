@@ -17,10 +17,8 @@ class News(Base):
     category: Mapped[str] = mapped_column(String(20), index=True)
     author: Mapped[str | None] = mapped_column(String(200))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
-    content: Mapped[str | None] = mapped_column(Text)
     content_excerpt: Mapped[str | None] = mapped_column(Text)
     raw_data: Mapped[dict | None] = mapped_column(JSON)
     collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     source_feed = relationship("RssFeed", back_populates="news")
-
