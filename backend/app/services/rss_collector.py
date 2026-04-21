@@ -1,5 +1,7 @@
 from datetime import datetime
 from email.utils import parsedate_to_datetime
+from html import unescape
+import re
 
 import feedparser
 import httpx
@@ -9,6 +11,9 @@ from sqlalchemy.orm import Session
 from app.models import News, RssFeed
 
 USER_AGENT = "ysj.brief feed validator"
+TITLE_PREFIX_PATTERN = re.compile(r"^(Show|Ask|Tell)\s+GN:\s*", re.IGNORECASE)
+HTML_PATTERN = re.compile(r"<[^>]+>")
+WHITESPACE_PATTERN = re.compile(r"\s+")
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -18,6 +23,20 @@ def _parse_datetime(value: str | None) -> datetime | None:
         return parsedate_to_datetime(value)
     except (TypeError, ValueError):
         return None
+
+
+def clean_feed_title(title: str) -> str:
+    return TITLE_PREFIX_PATTERN.sub("", title).strip()
+
+
+def clean_feed_excerpt(value: str | None, max_length: int = 400) -> str | None:
+    if not value:
+        return None
+    text = unescape(HTML_PATTERN.sub(" ", value))
+    text = WHITESPACE_PATTERN.sub(" ", text).strip()
+    if not text:
+        return None
+    return text[:max_length].rstrip() + ("..." if len(text) > max_length else "")
 
 
 async def fetch_feed(feed: RssFeed) -> tuple[str, list[dict], str | None]:
@@ -37,13 +56,18 @@ async def fetch_feed(feed: RssFeed) -> tuple[str, list[dict], str | None]:
         title = entry.get("title")
         if not link or not title:
             continue
+        excerpt = (
+            clean_feed_excerpt(entry.get("summary"))
+            or clean_feed_excerpt(entry.get("description"))
+            or clean_feed_excerpt(entry.get("content", [{}])[0].get("value") if entry.get("content") else None)
+        )
         entries.append(
             {
-                "title": title,
+                "title": clean_feed_title(title),
                 "url": link,
                 "author": entry.get("author"),
                 "published_at": _parse_datetime(entry.get("published")),
-                "content_excerpt": entry.get("summary"),
+                "content_excerpt": excerpt,
                 "raw_data": {
                     "id": entry.get("id"),
                     "published": entry.get("published"),
@@ -86,4 +110,3 @@ async def collect_all_feeds(db: Session) -> dict[str, int]:
             inserted += 1
     db.commit()
     return {"feeds": len(feeds), "inserted": inserted, "failed": failed}
-

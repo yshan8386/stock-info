@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Card } from "@/components/ui/Card";
+import { Icon } from "@/components/ui/Icon";
 import { apiFetch, formatDate } from "@/lib/api";
 import type { DashboardSummary } from "@/types/api";
 
@@ -23,10 +24,10 @@ export default function HomePage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Link href="/brief">
-          <Card className="h-full transition hover:border-accent">
+          <Card className="h-full transition hover:border-accent hover:bg-accentSoft/50">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold">데일리 브리핑</h2>
-              <span>→</span>
+              <Icon name="arrowRight" className="h-5 w-5 text-accent" />
             </div>
             <p className="text-sm text-muted">
               {summary?.today_briefing
@@ -38,10 +39,10 @@ export default function HomePage() {
         </Link>
 
         <Link href="/glossary">
-          <Card className="h-full transition hover:border-accent">
+          <Card className="h-full transition hover:border-accent hover:bg-infoSoft/60">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-xl font-bold">투자 개념 정리</h2>
-              <span>→</span>
+              <Icon name="arrowRight" className="h-5 w-5 text-info" />
             </div>
             <p className="text-sm text-muted">등록된 개념 {summary?.glossary.total_terms ?? 0}개</p>
             <p className="mt-4 text-lg">
@@ -67,4 +68,3 @@ export default function HomePage() {
     </div>
   );
 }
-

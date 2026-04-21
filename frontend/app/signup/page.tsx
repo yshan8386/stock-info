@@ -7,6 +7,7 @@ import { FormEvent, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { LoadingBar } from "@/components/ui/LoadingBar";
 import { apiFetch } from "@/lib/api";
 
 export default function SignupPage() {
@@ -48,6 +49,11 @@ export default function SignupPage() {
           </Link>
           <h1 className="mt-4 text-2xl font-bold">회원가입</h1>
         </div>
+        {loading ? (
+          <div className="mb-5">
+            <LoadingBar active label="회원가입 정보를 확인하고 계정을 만들고 있습니다." />
+          </div>
+        ) : null}
         <form className="grid gap-4" onSubmit={submit}>
           <Input label="아이디" name="username" minLength={4} maxLength={20} required />
           <Input label="비밀번호" name="password" type="password" minLength={8} required />
@@ -55,11 +61,10 @@ export default function SignupPage() {
           <Input label="닉네임" name="display_name" minLength={2} maxLength={20} required />
           <Input label="핸드폰 번호" name="phone" placeholder="010-1234-5678" required />
           <Input label="이메일" name="email" type="email" required />
-          {error ? <p className="text-sm text-red-300">{error}</p> : null}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <Button disabled={loading}>{loading ? "가입 중" : "가입하기"}</Button>
         </form>
       </Card>
     </div>
   );
 }
-

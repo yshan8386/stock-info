@@ -3,15 +3,14 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.dependencies import get_current_user
-from app.models import GlossaryCategory, GlossaryTerm, User
+from app.models import GlossaryCategory, GlossaryTerm
 from app.schemas.glossary import GlossaryCategoryOut, GlossaryGroupedOut, GlossaryTermOut
 
-router = APIRouter(prefix="/glossary", tags=["glossary"], dependencies=[Depends(get_current_user)])
+router = APIRouter(prefix="/glossary", tags=["glossary"])
 
 
 @router.get("", response_model=list[GlossaryGroupedOut])
-def list_terms(db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> list[GlossaryGroupedOut]:
+def list_terms(db: Session = Depends(get_db)) -> list[GlossaryGroupedOut]:
     categories = list(
         db.scalars(select(GlossaryCategory).options(selectinload(GlossaryCategory.terms)).order_by(GlossaryCategory.sort_order))
     )
@@ -48,4 +47,3 @@ def get_term(term_id: int, db: Session = Depends(get_db)) -> GlossaryTerm:
     if term is None:
         raise HTTPException(status_code=404, detail="Glossary term not found")
     return term
-

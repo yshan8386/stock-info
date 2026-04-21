@@ -25,11 +25,11 @@ FEEDS = [
 ]
 
 CATEGORIES = [
-    ("기술적 분석", "technical", "📐", 1),
-    ("성과 지표", "performance", "📊", 2),
-    ("기본적 분석", "fundamental", "📋", 3),
-    ("주문/거래", "trading", "💹", 4),
-    ("전략", "strategy", "🎯", 5),
+    ("기술적 분석", "technical", "tech", 1),
+    ("성과 지표", "performance", "perf", 2),
+    ("기본적 분석", "fundamental", "fund", 3),
+    ("주문/거래", "trading", "trade", 4),
+    ("전략", "strategy", "strat", 5),
 ]
 
 TERMS = [

@@ -1,19 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
 import { Card } from "@/components/ui/Card";
 import { apiFetch } from "@/lib/api";
 import type { Briefing } from "@/types/api";
 
-export default function ArchiveDetailPage({ params }: { params: { date: string } }) {
+export default function ArchiveDetailPage({ params }: { params: Promise<{ date: string }> }) {
+  const { date } = use(params);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch<Briefing>(`/brief/date/${params.date}`).then(setBriefing).catch(() => setBriefing(null));
-  }, [params.date]);
+    setLoading(true);
+    apiFetch<Briefing>(`/brief/date/${date}`)
+      .then(setBriefing)
+      .catch(() => setBriefing(null))
+      .finally(() => setLoading(false));
+  }, [date]);
 
   return (
     <div className="space-y-5">
@@ -21,7 +27,9 @@ export default function ArchiveDetailPage({ params }: { params: { date: string }
         ← 아카이브
       </Link>
       <Card>
-        {briefing ? (
+        {loading ? (
+          <p className="text-muted">브리핑을 불러오는 중입니다.</p>
+        ) : briefing ? (
           <div className="prose-brief">
             <ReactMarkdown>{briefing.content_markdown}</ReactMarkdown>
           </div>
@@ -32,4 +40,3 @@ export default function ArchiveDetailPage({ params }: { params: { date: string }
     </div>
   );
 }
-

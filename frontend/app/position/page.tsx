@@ -1,9 +1,12 @@
 import { Card } from "@/components/ui/Card";
+import { Icon } from "@/components/ui/Icon";
 
 export default function PositionPage() {
   return (
     <Card className="mx-auto max-w-2xl text-center">
-      <div className="text-5xl">🚧</div>
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-infoSoft text-info">
+        <Icon name="briefcase" className="h-8 w-8" />
+      </div>
       <h1 className="mt-6 text-2xl font-bold">투자 현황은 준비 중입니다</h1>
       <div className="mt-6 grid gap-3 text-left text-muted">
         <p>포트폴리오 조회</p>
@@ -14,4 +17,3 @@ export default function PositionPage() {
     </Card>
   );
 }
-

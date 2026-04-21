@@ -14,10 +14,25 @@ export type BriefingArchiveItem = {
   generated_at: string;
 };
 
+export type BriefingHighlight = {
+  news_id: number;
+  title: string;
+  title_ko?: string;
+  url: string;
+  source: string;
+  reason: string;
+};
+
+export type BriefingSection = {
+  label: string;
+  summary: string;
+  highlights: BriefingHighlight[];
+};
+
 export type Briefing = BriefingArchiveItem & {
   briefing_type: string;
   content_markdown: string;
-  content_sections: Record<string, unknown> | null;
+  content_sections: Record<string, BriefingSection> | null;
   keywords: string[] | null;
   source_article_count: number | null;
   model_used: string | null;
@@ -71,4 +86,3 @@ export type Feed = {
   last_error: string | null;
   fetch_interval_minutes: number;
 };
-

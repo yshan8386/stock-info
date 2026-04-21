@@ -45,7 +45,7 @@ export default function LoginPage() {
         <form className="space-y-4" onSubmit={submit}>
           <Input label="아이디" name="username" autoComplete="username" required />
           <Input label="비밀번호" name="password" type="password" autoComplete="current-password" required />
-          {error ? <p className="text-sm text-red-300">{error}</p> : null}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
           <Button className="w-full" disabled={loading}>
             {loading ? "로그인 중" : "로그인"}
           </Button>
@@ -57,4 +57,3 @@ export default function LoginPage() {
     </div>
   );
 }
-

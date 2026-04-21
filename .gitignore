@@ -10,6 +10,7 @@ node_modules/
 .next/
 dist/
 coverage/
+*.tsbuildinfo
 pgdata/
 backups/*.sql
 .omx/
