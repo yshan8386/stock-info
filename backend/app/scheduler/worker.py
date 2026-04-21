@@ -1,3 +1,5 @@
+import logging
+
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 
@@ -8,6 +10,7 @@ from app.services.seed_data import seed_initial_data
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     settings = get_settings()
     create_db_and_tables()
     with SessionLocal() as db:
