@@ -29,16 +29,19 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-8">
       <section className="surface overflow-hidden rounded-md p-6 md:p-8">
         <div className="grid gap-6 md:grid-cols-[1.4fr_0.8fr] md:items-end">
           <div>
-            <p className="text-sm font-semibold text-accent">{formatDate(new Date().toISOString())}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-accent">{formatDate(new Date().toISOString())}</p>
+              <span className="rounded-md bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accent">공개 콘텐츠 먼저</span>
+            </div>
             <h1 className="mt-4 max-w-3xl text-3xl font-bold leading-tight md:text-5xl">
-              시장 뉴스와 투자 개념을 한 화면에서 정리합니다.
+              오늘 읽을 뉴스와 헷갈리는 투자 개념을 빠르게 정리하세요.
             </h1>
             <p className="mt-4 max-w-2xl leading-7 text-muted">
-              데일리 브리핑과 투자 개념 정리는 로그인 없이 볼 수 있습니다. 백테스트와 투자 현황은 계정 생성 후 이용할 수 있습니다.
+              첫 화면에서 바로 브리핑을 확인하고, 모르는 용어는 개념 정리에서 찾아볼 수 있습니다. 계정이 필요한 기능은 명확히 분리했습니다.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link className="rounded-md bg-text px-4 py-3 text-sm font-semibold text-white transition hover:bg-accent" href="/brief">
@@ -51,7 +54,7 @@ export default function HomePage() {
           </div>
           <div className="grid gap-3 rounded-md border border-line bg-white/70 p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-muted">공개 콘텐츠</span>
+              <span className="text-sm font-semibold text-text">오늘 상태</span>
               <span className="rounded-md bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accent">로그인 불필요</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -64,11 +67,22 @@ export default function HomePage() {
                 <p className="mt-2 text-2xl font-bold">{totalTerms}</p>
               </div>
             </div>
+            <p className="rounded-md bg-warnSoft px-3 py-2 text-sm leading-6 text-warn">
+              백테스트와 투자 현황은 개인 데이터가 필요해서 로그인 후 열립니다.
+            </p>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <section className="space-y-3">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-accent">바로 보기</p>
+            <h2 className="text-2xl font-bold">로그인 없이 시작</h2>
+          </div>
+          <p className="hidden text-sm text-muted md:block">뉴스 확인 → 개념 검색 순서로 보는 흐름입니다.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
         <Link href="/brief">
           <Card className="h-full transition hover:-translate-y-0.5 hover:border-accent">
             <div className="mb-4 flex items-center justify-between">
@@ -100,10 +114,18 @@ export default function HomePage() {
             </p>
           </Card>
         </Link>
+        </div>
+      </section>
 
+      <section className="space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-muted">개인 기능</p>
+          <h2 className="text-2xl font-bold">로그인 후 이용</h2>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
         <Link href="/backtest">
           <Card className="h-full border-dashed">
-            <span className="rounded-md bg-warnSoft px-2.5 py-1 text-xs font-semibold text-warn">로그인 후 이용</span>
+            <span className="rounded-md bg-warnSoft px-2.5 py-1 text-xs font-semibold text-warn">계정 필요</span>
             <h2 className="text-xl font-bold">백테스트</h2>
             <p className="mt-4 text-muted">투자 전략을 과거 데이터로 검증하는 기능을 준비하고 있습니다.</p>
           </Card>
@@ -111,12 +133,13 @@ export default function HomePage() {
 
         <Link href="/position">
           <Card className="h-full border-dashed">
-            <span className="rounded-md bg-coralSoft px-2.5 py-1 text-xs font-semibold text-coral">로그인 후 이용</span>
+            <span className="rounded-md bg-coralSoft px-2.5 py-1 text-xs font-semibold text-coral">계정 필요</span>
             <h2 className="text-xl font-bold">투자 현황</h2>
             <p className="mt-4 text-muted">포트폴리오 조회와 손익 추적 기능을 준비하고 있습니다.</p>
           </Card>
         </Link>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }
