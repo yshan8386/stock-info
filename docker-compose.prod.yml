@@ -1,24 +1,32 @@
 services:
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
     restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3001}:3000"
     environment:
-      NEXT_PUBLIC_API_URL: https://brief.ysj.example.com/api/v1
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
 
   backend:
     build: ./backend
     restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-18080}:8000"
     environment:
       DATABASE_URL: ${DATABASE_URL}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
-      COOKIE_SECURE: "true"
-      CORS_ORIGINS: '["https://brief.ysj.example.com"]'
-      MOCK_CLAUDE: "false"
+      DB_SCHEMA: ${DB_SCHEMA:-trade}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5}
+      MOCK_CLAUDE: ${MOCK_CLAUDE:-false}
       TZ: Asia/Seoul
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - supabase
 
   worker:
     build: ./backend
@@ -28,43 +36,16 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       JWT_SECRET: ${JWT_SECRET}
-      COOKIE_SECURE: "true"
-      CORS_ORIGINS: '["https://brief.ysj.example.com"]'
-      MOCK_CLAUDE: "false"
+      DB_SCHEMA: ${DB_SCHEMA:-trade}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5}
+      MOCK_CLAUDE: ${MOCK_CLAUDE:-false}
       TZ: Asia/Seoul
-    depends_on:
-      postgres:
-        condition: service_healthy
+    networks:
+      - supabase
 
-  postgres:
-    image: postgres:15
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ysj_brief
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./backups:/backups
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ysj_brief"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/certs:/etc/letsencrypt
-    depends_on:
-      - frontend
-      - backend
-
-volumes:
-  pgdata:
-
+networks:
+  supabase:
+    external: true
+    name: ${SUPABASE_DOCKER_NETWORK:-supabase_default}
