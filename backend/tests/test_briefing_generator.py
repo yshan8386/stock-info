@@ -102,7 +102,7 @@ def test_sanitize_payload_replaces_untranslated_titles() -> None:
 
     assert item.title not in sanitized["one_liner"]
     assert item.title not in sanitized["sections"]["dev"]["summary"]
-    assert sanitized["sections"]["dev"]["highlights"][0]["title_ko"] == "개발/기술 주요 해외 기사"
+    assert sanitized["sections"]["dev"]["highlights"][0]["title_ko"] == "JavaScript·프레임워크 관련 해외 기사"
     assert "JavaScript frameworks" not in sanitized["sections"]["dev"]["highlights"][0]["reason"]
 
 

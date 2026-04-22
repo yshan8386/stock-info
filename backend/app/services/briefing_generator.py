@@ -54,6 +54,25 @@ BRIEFING_WINDOWS = {
     },
 }
 
+TITLE_HINTS = {
+    "javascript": "JavaScript",
+    "framework": "프레임워크",
+    "docker": "Docker",
+    "react": "React",
+    "python": "Python",
+    "security": "보안",
+    "performance": "성능",
+    "agent": "AI 에이전트",
+    "generative ai": "생성형 AI",
+    "openai": "OpenAI",
+    "claude": "Claude",
+    "model": "AI 모델",
+    "nvidia": "NVIDIA",
+    "earnings": "실적",
+    "etf": "ETF",
+    "stock": "증시",
+}
+
 CATEGORY_KEYWORDS = {
     "dev": {
         "react": 7,
@@ -154,6 +173,15 @@ def _looks_untranslated(value: str | None) -> bool:
 def _fallback_korean_title(item: News) -> str:
     if _has_meaningful_korean(item.title):
         return item.title
+    lowered = item.title.lower()
+    hints = []
+    for keyword, label in TITLE_HINTS.items():
+        if keyword in lowered and label not in hints:
+            hints.append(label)
+        if len(hints) >= 2:
+            break
+    if hints:
+        return f"{'·'.join(hints)} 관련 해외 기사"
     return f"{_section_label(item.category)} 주요 해외 기사"
 
 
