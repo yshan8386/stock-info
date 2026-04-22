@@ -187,7 +187,7 @@ def _fallback_korean_title(item: News) -> str:
 
 def _coerce_korean_title(item: News, value: str | None) -> str:
     candidate = _clean_text(value, 120)
-    if candidate and not _looks_untranslated(candidate):
+    if candidate and "주요 해외 기사" not in candidate and not _looks_untranslated(candidate):
         return candidate
     return _fallback_korean_title(item)
 
@@ -516,7 +516,7 @@ def _sanitize_payload(payload: dict[str, Any], grouped_news: dict[str, list[News
             highlights = fallback_section["highlights"]
 
         summary = _replace_raw_titles(str(incoming.get("summary") or ""), category_items, 260)
-        if not summary or _looks_untranslated(summary):
+        if not summary or "주요 해외 기사" in summary or _looks_untranslated(summary):
             summary = fallback_section["summary"]
         result["sections"][category] = {
             "label": fallback_section["label"],
