@@ -24,6 +24,8 @@ HTML_PATTERN = re.compile(r"<[^>]+>")
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[[^\]]*]\([^)]*\)")
 MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)]\([^)]*\)")
 WHITESPACE_PATTERN = re.compile(r"\s+")
+HANGUL_PATTERN = re.compile(r"[가-힣]")
+ASCII_WORD_PATTERN = re.compile(r"[A-Za-z]{3,}")
 MAX_REASON_LENGTH = 180
 
 BRIEFING_TYPE_MORNING = "daily_morning"
@@ -140,6 +142,47 @@ def _clean_text(value: str | None, max_length: int = MAX_REASON_LENGTH) -> str:
     return text
 
 
+def _has_meaningful_korean(value: str | None) -> bool:
+    return len(HANGUL_PATTERN.findall(value or "")) >= 2
+
+
+def _looks_untranslated(value: str | None) -> bool:
+    text = value or ""
+    return bool(ASCII_WORD_PATTERN.search(text)) and not _has_meaningful_korean(text)
+
+
+def _fallback_korean_title(item: News) -> str:
+    if _has_meaningful_korean(item.title):
+        return item.title
+    return f"{_section_label(item.category)} 주요 해외 기사"
+
+
+def _coerce_korean_title(item: News, value: str | None) -> str:
+    candidate = _clean_text(value, 120)
+    if candidate and not _looks_untranslated(candidate):
+        return candidate
+    return _fallback_korean_title(item)
+
+
+def _fallback_reason(item: News) -> str:
+    excerpt = _clean_text(item.content_excerpt)
+    if excerpt and not _looks_untranslated(excerpt):
+        return excerpt
+    return f"{item.source_name}에서 확인된 {_section_label(item.category)} 관련 주요 기사입니다."
+
+
+def _replace_raw_titles(value: str | None, items: list[News], max_length: int = MAX_REASON_LENGTH) -> str:
+    text = _clean_text(value, max_length * 3)
+    for item in items:
+        raw_title = item.title.strip()
+        if len(raw_title) >= 8:
+            text = text.replace(raw_title, _fallback_korean_title(item))
+    text = WHITESPACE_PATTERN.sub(" ", text).strip()
+    if len(text) > max_length:
+        return text[:max_length].rstrip() + "..."
+    return text
+
+
 def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
@@ -220,7 +263,7 @@ def _build_fallback_section(category: str, items: list[News]) -> dict[str, Any]:
         }
 
     sources = ", ".join(dict.fromkeys(item.source_name for item in items[:3]))
-    headline = ", ".join(item.title for item in items[:2])
+    headline = ", ".join(_fallback_korean_title(item) for item in items[:2])
     return {
         "label": label,
         "summary": f"{label} 섹션에서는 {headline} 이슈가 중심입니다. 주요 출처는 {sources}입니다.",
@@ -228,10 +271,10 @@ def _build_fallback_section(category: str, items: list[News]) -> dict[str, Any]:
             {
                 "news_id": item.id,
                 "title": item.title,
-                "title_ko": item.title,
+                "title_ko": _fallback_korean_title(item),
                 "url": item.url,
                 "source": item.source_name,
-                "reason": _clean_text(item.content_excerpt) or f"{item.source_name}에서 확인된 주요 기사입니다.",
+                "reason": _fallback_reason(item),
             }
             for item in items
         ],
@@ -273,7 +316,7 @@ def _build_fallback_payload(grouped_news: dict[str, list[News]], target_date: da
     highlights = _pick_highlights(grouped_news)
     all_items = [item for category in BRIEFING_CATEGORIES for item in highlights[category]]
     label = _briefing_type_label(briefing_type)
-    top_titles = [item.title for item in all_items[:3]]
+    top_titles = [_fallback_korean_title(item) for item in all_items[:3]]
     one_liner = (
         " / ".join(top_titles[:2]) + " 흐름을 중심으로 시장과 기술 이슈를 정리했습니다."
         if top_titles
@@ -325,6 +368,9 @@ def _call_claude_for_briefing(grouped_news: dict[str, list[News]], target_date: 
 브리핑 종류: {label}
 
 아래 기사 후보를 참고해서 build_daily_briefing 도구를 호출하세요.
+- title, one_liner, summary, title_ko, reason은 모두 한국어로 작성하세요.
+- 외국어 기사 제목을 summary/reason에 그대로 복사하지 말고 한국어 의미로 풀어서 쓰세요.
+- 제품명, 회사명, 기술명은 원어 표기를 유지해도 되지만 문장 자체는 한국어여야 합니다.
 - one_liner: 55자 이내
 - keywords: 5~8개
 - sections.dev/investment/ai 각각 summary 2문장 이내
@@ -343,7 +389,7 @@ def _call_claude_for_briefing(grouped_news: dict[str, list[News]], target_date: 
         model=settings.claude_model,
         max_tokens=CLAUDE_MAX_TOKENS,
         temperature=0,
-        system="당신은 개인 투자자를 위한 아침 브리핑 편집자입니다. 반드시 제공된 도구만 호출합니다.",
+        system="당신은 개인 투자자를 위한 한국어 브리핑 편집자입니다. 반드시 제공된 도구만 호출하고, 사용자에게 보이는 문장은 한국어로 작성합니다.",
         messages=[{"role": "user", "content": prompt}],
         tools=[
             {
@@ -413,32 +459,40 @@ def _sanitize_payload(payload: dict[str, Any], grouped_news: dict[str, list[News
     }
 
     known_by_id = {item.id: item for items in grouped_news.values() for item in items}
+    all_known_items = [item for items in grouped_news.values() for item in items]
+    result["one_liner"] = _replace_raw_titles(result["one_liner"], all_known_items, 120) or fallback["one_liner"]
     for category in BRIEFING_CATEGORIES:
         incoming = payload.get("sections", {}).get(category, {})
         fallback_section = fallback["sections"][category]
+        category_items = grouped_news.get(category, [])
         highlights: list[dict[str, Any]] = []
         for item in incoming.get("highlights", []):
             news_id = item.get("news_id")
             source_item = known_by_id.get(news_id)
             if source_item is None:
                 continue
+            reason = _replace_raw_titles(str(item.get("reason") or ""), [source_item], 80)
+            if not reason or _looks_untranslated(reason):
+                reason = _fallback_reason(source_item)
             highlights.append(
                 {
                     "news_id": source_item.id,
                     "title": source_item.title,
-                    "title_ko": str(item.get("title_ko") or source_item.title).strip(),
+                    "title_ko": _coerce_korean_title(source_item, str(item.get("title_ko") or "")),
                     "url": source_item.url,
                     "source": source_item.source_name,
-                    "reason": _clean_text(str(item.get("reason") or source_item.content_excerpt or ""))
-                    or f"{source_item.source_name}에서 확인된 주요 기사입니다.",
+                    "reason": reason,
                 }
             )
         if not highlights:
             highlights = fallback_section["highlights"]
 
+        summary = _replace_raw_titles(str(incoming.get("summary") or ""), category_items, 260)
+        if not summary or _looks_untranslated(summary):
+            summary = fallback_section["summary"]
         result["sections"][category] = {
             "label": fallback_section["label"],
-            "summary": str(incoming.get("summary") or fallback_section["summary"]).strip(),
+            "summary": summary,
             "highlights": highlights,
         }
 

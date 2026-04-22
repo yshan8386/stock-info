@@ -8,6 +8,7 @@ from app.services.briefing_generator import (
     _build_fallback_payload,
     _group_ranked_news,
     _render_markdown,
+    _sanitize_payload,
 )
 
 
@@ -63,6 +64,46 @@ def test_briefing_windows_use_korean_market_day_boundaries() -> None:
     assert morning_end.isoformat() == "2026-04-21T22:20:00+00:00"
     assert afternoon_start.isoformat() == "2026-04-21T22:30:00+00:00"
     assert afternoon_end.isoformat() == "2026-04-22T07:20:00+00:00"
+
+
+def test_sanitize_payload_replaces_untranslated_titles() -> None:
+    item = _news_item(
+        20,
+        "dev",
+        "4 JavaScript Frameworks Powering the Generative AI Revolution",
+        "Dev.to",
+        excerpt="A guide to JavaScript frameworks for generative AI apps.",
+    )
+    grouped = {"dev": [item], "investment": [], "ai": []}
+    payload = {
+        "title": "2026년 4월 22일 아침 브리핑",
+        "one_liner": "4 JavaScript Frameworks Powering the Generative AI Revolution 주목",
+        "keywords": ["JavaScript", "AI"],
+        "sections": {
+            "dev": {
+                "summary": "4 JavaScript Frameworks Powering the Generative AI Revolution 이슈가 중심입니다.",
+                "highlights": [
+                    {
+                        "news_id": 20,
+                        "title": item.title,
+                        "title_ko": item.title,
+                        "url": item.url,
+                        "source": item.source_name,
+                        "reason": "A guide to JavaScript frameworks for generative AI apps.",
+                    }
+                ],
+            },
+            "investment": {"summary": "", "highlights": []},
+            "ai": {"summary": "", "highlights": []},
+        },
+    }
+
+    sanitized = _sanitize_payload(payload, grouped, date(2026, 4, 22), BRIEFING_TYPE_MORNING)
+
+    assert item.title not in sanitized["one_liner"]
+    assert item.title not in sanitized["sections"]["dev"]["summary"]
+    assert sanitized["sections"]["dev"]["highlights"][0]["title_ko"] == "개발/기술 주요 해외 기사"
+    assert "JavaScript frameworks" not in sanitized["sections"]["dev"]["highlights"][0]["reason"]
 
 
 def test_article_ranking_uses_relevance_and_source_diversity() -> None:
