@@ -1005,7 +1005,7 @@ CREATE TABLE briefings (
     id SERIAL PRIMARY KEY,
     briefing_date DATE NOT NULL,
     briefing_type VARCHAR(30) NOT NULL CHECK (
-        briefing_type IN ('daily_morning', 'manual')
+        briefing_type IN ('daily_morning', 'daily_afternoon', 'manual')
     ),
     title VARCHAR(200),
     one_liner TEXT,
@@ -1168,9 +1168,9 @@ INSERT INTO glossary_terms (category_id, term_ko, term_en, short_desc, detail_ma
 #### 데일리 브리핑
 | Method | Path | 설명 |
 |--------|------|------|
-| GET | `/brief/today` | 오늘 브리핑 |
+| GET | `/brief/today` | 오늘 최신 브리핑 |
 | GET | `/brief/archive` | 아카이브 리스트 |
-| GET | `/brief/date/:date` | 날짜별 브리핑 (`YYYY-MM-DD`) |
+| GET | `/brief/date/:date` | 날짜별 브리핑 (`YYYY-MM-DD`, optional `briefing_type`) |
 | GET | `/brief/:id` | ID 기준 특정 브리핑 |
 | GET | `/brief/search` | 키워드 검색 |
 | POST | `/brief/regenerate` | 오늘 브리핑 수동 재생성, `daily_morning` row upsert |
@@ -1375,7 +1375,8 @@ Rules:
 | 주기 | 시간 | 작업 | 설명 |
 |------|------|------|------|
 | 1시간마다 | 매시 5분 | `collect_rss_feeds` | 모든 RSS 수집 |
-| 매일 | 06:30 | `generate_daily_briefing` | 일일 브리핑 (Claude 1회) |
+| 매일 | 07:30 | `generate_morning_briefing` | 전날 15:30~당일 07:20 발행 기사 기반 아침 브리핑 |
+| 매일 | 16:30 | `generate_afternoon_briefing` | 당일 07:30~16:20 발행 기사 기반 오후 브리핑 |
 | 매일 | 03:00 | `cleanup_old_data` | 6개월+ raw_data 정리 |
 
 > 권장: Phase 1에서 RSS 수집만 3~4일 돌려 일일 수집량 파악 후, 브리핑 생성 활성화.

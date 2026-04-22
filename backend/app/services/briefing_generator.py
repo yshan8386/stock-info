@@ -6,9 +6,10 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from html import unescape
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from anthropic import Anthropic
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -24,6 +25,32 @@ MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[[^\]]*]\([^)]*\)")
 MARKDOWN_LINK_PATTERN = re.compile(r"\[([^\]]+)]\([^)]*\)")
 WHITESPACE_PATTERN = re.compile(r"\s+")
 MAX_REASON_LENGTH = 180
+
+BRIEFING_TYPE_MORNING = "daily_morning"
+BRIEFING_TYPE_AFTERNOON = "daily_afternoon"
+BRIEFING_TYPE_LABELS = {
+    BRIEFING_TYPE_MORNING: "아침",
+    BRIEFING_TYPE_AFTERNOON: "오후",
+}
+
+BRIEFING_WINDOWS = {
+    BRIEFING_TYPE_MORNING: {
+        "start_offset_days": -1,
+        "start_hour": 15,
+        "start_minute": 30,
+        "end_offset_days": 0,
+        "end_hour": 7,
+        "end_minute": 20,
+    },
+    BRIEFING_TYPE_AFTERNOON: {
+        "start_offset_days": 0,
+        "start_hour": 7,
+        "start_minute": 30,
+        "end_offset_days": 0,
+        "end_hour": 16,
+        "end_minute": 20,
+    },
+}
 
 CATEGORY_KEYWORDS = {
     "dev": {
@@ -211,9 +238,41 @@ def _build_fallback_section(category: str, items: list[News]) -> dict[str, Any]:
     }
 
 
-def _build_fallback_payload(grouped_news: dict[str, list[News]], target_date: date) -> dict[str, Any]:
+def _briefing_type_label(briefing_type: str) -> str:
+    return BRIEFING_TYPE_LABELS.get(briefing_type, "데일리")
+
+
+def _briefing_window(target_date: date, briefing_type: str, timezone_name: str) -> tuple[datetime, datetime]:
+    if briefing_type not in BRIEFING_WINDOWS:
+        raise ValueError(f"Unsupported briefing_type: {briefing_type}")
+
+    tz = ZoneInfo(timezone_name)
+    window = BRIEFING_WINDOWS[briefing_type]
+    start_date = target_date + timedelta(days=window["start_offset_days"])
+    end_date = target_date + timedelta(days=window["end_offset_days"])
+    start = datetime(
+        start_date.year,
+        start_date.month,
+        start_date.day,
+        window["start_hour"],
+        window["start_minute"],
+        tzinfo=tz,
+    )
+    end = datetime(
+        end_date.year,
+        end_date.month,
+        end_date.day,
+        window["end_hour"],
+        window["end_minute"],
+        tzinfo=tz,
+    )
+    return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+
+
+def _build_fallback_payload(grouped_news: dict[str, list[News]], target_date: date, briefing_type: str = BRIEFING_TYPE_MORNING) -> dict[str, Any]:
     highlights = _pick_highlights(grouped_news)
     all_items = [item for category in BRIEFING_CATEGORIES for item in highlights[category]]
+    label = _briefing_type_label(briefing_type)
     top_titles = [item.title for item in all_items[:3]]
     one_liner = (
         " / ".join(top_titles[:2]) + " 흐름을 중심으로 시장과 기술 이슈를 정리했습니다."
@@ -223,7 +282,7 @@ def _build_fallback_payload(grouped_news: dict[str, list[News]], target_date: da
 
     sections = {category: _build_fallback_section(category, highlights[category]) for category in BRIEFING_CATEGORIES}
     return {
-        "title": f"{target_date.isoformat()} 데일리 브리핑",
+        "title": f"{target_date.isoformat()} {label} 브리핑",
         "one_liner": one_liner[:120],
         "keywords": _extract_keywords(all_items),
         "sections": sections,
@@ -255,13 +314,15 @@ def _strip_json_block(value: str) -> str:
     return content
 
 
-def _call_claude_for_briefing(grouped_news: dict[str, list[News]], target_date: date) -> dict[str, Any]:
+def _call_claude_for_briefing(grouped_news: dict[str, list[News]], target_date: date, briefing_type: str) -> dict[str, Any]:
     settings = get_settings()
     if settings.mock_claude or not settings.anthropic_api_key:
         raise RuntimeError("Claude generation disabled")
 
+    label = _briefing_type_label(briefing_type)
     prompt = f"""
 날짜: {target_date.isoformat()}
+브리핑 종류: {label}
 
 아래 기사 후보를 참고해서 build_daily_briefing 도구를 호출하세요.
 - one_liner: 55자 이내
@@ -342,8 +403,8 @@ def _call_claude_for_briefing(grouped_news: dict[str, list[News]], target_date: 
     raise RuntimeError("Claude returned no build_daily_briefing tool call")
 
 
-def _sanitize_payload(payload: dict[str, Any], grouped_news: dict[str, list[News]], target_date: date) -> dict[str, Any]:
-    fallback = _build_fallback_payload(grouped_news, target_date)
+def _sanitize_payload(payload: dict[str, Any], grouped_news: dict[str, list[News]], target_date: date, briefing_type: str) -> dict[str, Any]:
+    fallback = _build_fallback_payload(grouped_news, target_date, briefing_type)
     result = {
         "title": str(payload.get("title") or fallback["title"]),
         "one_liner": str(payload.get("one_liner") or fallback["one_liner"])[:120],
@@ -387,9 +448,10 @@ def _sanitize_payload(payload: dict[str, Any], grouped_news: dict[str, list[News
     return result
 
 
-def _render_markdown(payload: dict[str, Any], target_date: date) -> str:
+def _render_markdown(payload: dict[str, Any], target_date: date, briefing_type: str = BRIEFING_TYPE_MORNING) -> str:
+    label = _briefing_type_label(briefing_type)
     lines = [
-        f"# {target_date.strftime('%Y년 %-m월 %-d일')} 브리핑",
+        f"# {target_date.strftime('%Y년 %-m월 %-d일')} {label} 브리핑",
         "",
         "## 한 줄 요약",
         payload["one_liner"],
@@ -415,25 +477,44 @@ def _render_markdown(payload: dict[str, Any], target_date: date) -> str:
     return "\n".join(lines)
 
 
-def generate_daily_briefing(db: Session, target_date: date | None = None) -> Briefing:
+def generate_daily_briefing(
+    db: Session,
+    target_date: date | None = None,
+    briefing_type: str = BRIEFING_TYPE_MORNING,
+) -> Briefing:
     settings = get_settings()
-    target_date = target_date or date.today()
-    since = datetime.combine(target_date, datetime.min.time()) - timedelta(hours=6)
+    local_now = datetime.now(ZoneInfo(settings.timezone))
+    target_date = target_date or local_now.date()
+    window_start, window_end = _briefing_window(target_date, briefing_type, settings.timezone)
     now = datetime.now(timezone.utc)
     news_items = list(
-        db.scalars(select(News).where(News.collected_at >= since).order_by(desc(News.published_at), desc(News.id))).all()
+        db.scalars(
+            select(News)
+            .where(
+                News.published_at >= window_start,
+                News.published_at < window_end,
+                News.content_excerpt.is_not(None),
+                func.length(func.trim(News.content_excerpt)) > 0,
+            )
+            .order_by(desc(News.published_at), desc(News.id))
+        ).all()
     )
     grouped_news = _group_ranked_news(news_items, now)
 
     model_used = "fallback_rule_based"
     try:
-        payload = _sanitize_payload(_call_claude_for_briefing(grouped_news, target_date), grouped_news, target_date)
+        payload = _sanitize_payload(
+            _call_claude_for_briefing(grouped_news, target_date, briefing_type),
+            grouped_news,
+            target_date,
+            briefing_type,
+        )
         model_used = settings.claude_model
     except Exception as exc:
         logger.warning("Claude briefing generation failed; using fallback", exc_info=exc)
-        payload = _build_fallback_payload(grouped_news, target_date)
+        payload = _build_fallback_payload(grouped_news, target_date, briefing_type)
 
-    markdown = _render_markdown(payload, target_date)
+    markdown = _render_markdown(payload, target_date, briefing_type)
     highlighted_news_ids = [
         highlight["news_id"]
         for category in BRIEFING_CATEGORIES
@@ -443,11 +524,11 @@ def generate_daily_briefing(db: Session, target_date: date | None = None) -> Bri
     briefing = db.scalar(
         select(Briefing).where(
             Briefing.briefing_date == target_date,
-            Briefing.briefing_type == "daily_morning",
+            Briefing.briefing_type == briefing_type,
         )
     )
     if briefing is None:
-        briefing = Briefing(briefing_date=target_date, briefing_type="daily_morning", content_markdown=markdown)
+        briefing = Briefing(briefing_date=target_date, briefing_type=briefing_type, content_markdown=markdown)
         db.add(briefing)
 
     briefing.title = payload["title"]

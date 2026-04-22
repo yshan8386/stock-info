@@ -7,6 +7,11 @@ import { Card } from "@/components/ui/Card";
 import { apiFetch, formatDate } from "@/lib/api";
 import type { BriefingArchiveItem } from "@/types/api";
 
+const briefingTypeLabels: Record<string, string> = {
+  daily_morning: "아침",
+  daily_afternoon: "오후"
+};
+
 export default function ArchivePage() {
   const [items, setItems] = useState<BriefingArchiveItem[]>([]);
 
@@ -24,9 +29,14 @@ export default function ArchivePage() {
       </div>
       <div className="space-y-3">
         {items.map((item) => (
-          <Link key={item.id} href={`/brief/archive/${item.briefing_date}`}>
+          <Link key={item.id} href={`/brief/archive/${item.briefing_date}?type=${item.briefing_type}`}>
             <Card className="transition hover:border-accent">
-              <p className="text-sm text-muted">{formatDate(item.briefing_date)}</p>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
+                <span>{formatDate(item.briefing_date)}</span>
+                <span className="rounded-md bg-accentSoft px-2 py-0.5 text-xs font-semibold text-accent">
+                  {briefingTypeLabels[item.briefing_type] ?? "데일리"}
+                </span>
+              </div>
               <h2 className="mt-2 text-lg font-semibold">{item.title}</h2>
               <p className="mt-2 text-muted">{item.one_liner}</p>
             </Card>
@@ -37,4 +47,3 @@ export default function ArchivePage() {
     </div>
   );
 }
-

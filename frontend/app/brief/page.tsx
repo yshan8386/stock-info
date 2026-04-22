@@ -16,6 +16,11 @@ const sectionStyles = [
   { tone: "bg-warnSoft text-warn", label: "AI 동향" }
 ];
 
+const briefingTypeLabels: Record<string, string> = {
+  daily_morning: "아침 브리핑",
+  daily_afternoon: "오후 브리핑"
+};
+
 export default function BriefPage() {
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -60,6 +65,9 @@ export default function BriefPage() {
         <>
           <section className="surface rounded-md p-6 md:p-7">
             <div className="mb-4 flex flex-wrap gap-2 text-xs font-semibold">
+              <span className="rounded-md bg-white px-2.5 py-1 text-foreground">
+                {briefingTypeLabels[briefing.briefing_type] ?? "데일리 브리핑"}
+              </span>
               <span className="rounded-md bg-accentSoft px-2.5 py-1 text-accent">기반 기사 {briefing.source_article_count ?? 0}건</span>
               <span className="rounded-md bg-infoSoft px-2.5 py-1 text-info">{new Date(briefing.generated_at).toLocaleString("ko-KR")}</span>
             </div>

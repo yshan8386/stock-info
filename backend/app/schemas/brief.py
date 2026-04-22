@@ -22,9 +22,9 @@ class BriefingOut(BaseModel):
 class BriefingArchiveItem(BaseModel):
     id: int
     briefing_date: date
+    briefing_type: str
     title: str | None = None
     one_liner: str | None = None
     generated_at: datetime
 
     model_config = {"from_attributes": True}
-

@@ -1,7 +1,14 @@
 from datetime import date, datetime, timedelta
 
 from app.models import News
-from app.services.briefing_generator import _build_fallback_payload, _render_markdown, _group_ranked_news
+from app.services.briefing_generator import (
+    BRIEFING_TYPE_AFTERNOON,
+    BRIEFING_TYPE_MORNING,
+    _briefing_window,
+    _build_fallback_payload,
+    _group_ranked_news,
+    _render_markdown,
+)
 
 
 def _news_item(
@@ -46,6 +53,16 @@ def test_fallback_briefing_builds_sections_and_markdown() -> None:
     assert payload["sections"]["investment"]["highlights"][0]["title"] == "미국 반도체 ETF 강세"
     assert "## 투자/금융" in markdown
     assert "## 오늘의 키워드" in markdown
+
+
+def test_briefing_windows_use_korean_market_day_boundaries() -> None:
+    morning_start, morning_end = _briefing_window(date(2026, 4, 22), BRIEFING_TYPE_MORNING, "Asia/Seoul")
+    afternoon_start, afternoon_end = _briefing_window(date(2026, 4, 22), BRIEFING_TYPE_AFTERNOON, "Asia/Seoul")
+
+    assert morning_start.isoformat() == "2026-04-21T06:30:00+00:00"
+    assert morning_end.isoformat() == "2026-04-21T22:20:00+00:00"
+    assert afternoon_start.isoformat() == "2026-04-21T22:30:00+00:00"
+    assert afternoon_end.isoformat() == "2026-04-22T07:20:00+00:00"
 
 
 def test_article_ranking_uses_relevance_and_source_diversity() -> None:

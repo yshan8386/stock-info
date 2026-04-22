@@ -8,18 +8,26 @@ import { Card } from "@/components/ui/Card";
 import { apiFetch } from "@/lib/api";
 import type { Briefing } from "@/types/api";
 
-export default function ArchiveDetailPage({ params }: { params: Promise<{ date: string }> }) {
+export default function ArchiveDetailPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ date: string }>;
+  searchParams: Promise<{ type?: string }>;
+}) {
   const { date } = use(params);
+  const { type } = use(searchParams);
   const [briefing, setBriefing] = useState<Briefing | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    apiFetch<Briefing>(`/brief/date/${date}`)
+    const query = type ? `?briefing_type=${encodeURIComponent(type)}` : "";
+    apiFetch<Briefing>(`/brief/date/${date}${query}`)
       .then(setBriefing)
       .catch(() => setBriefing(null))
       .finally(() => setLoading(false));
-  }, [date]);
+  }, [date, type]);
 
   return (
     <div className="space-y-5">

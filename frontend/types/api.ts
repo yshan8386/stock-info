@@ -9,6 +9,7 @@ export type User = {
 export type BriefingArchiveItem = {
   id: number;
   briefing_date: string;
+  briefing_type: string;
   title: string | null;
   one_liner: string | null;
   generated_at: string;
