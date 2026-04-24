@@ -127,7 +127,7 @@ export default function HomePage() {
           <Card className="h-full border-dashed">
             <span className="rounded-md bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accent">이용 가능</span>
             <h2 className="text-xl font-bold">백테스트</h2>
-            <p className="mt-4 text-muted">거래대금 기준으로 후보 종목을 고르고 지지선·저항선 전략을 과거 데이터로 검증합니다.</p>
+            <p className="mt-4 text-muted">시총 우선 종목군에 눌림목 반등, 지지·저항 돌파 전략을 동시에 실행해 비교합니다.</p>
           </Card>
         </Link>
 
@@ -135,7 +135,7 @@ export default function HomePage() {
           <Card className="h-full border-dashed">
             <span className="rounded-md bg-coralSoft px-2.5 py-1 text-xs font-semibold text-coral">계정 필요</span>
             <h2 className="text-xl font-bold">투자 현황</h2>
-            <p className="mt-4 text-muted">포트폴리오 조회와 손익 추적 기능을 준비하고 있습니다.</p>
+            <p className="mt-4 text-muted">백테스트 전략을 실전 계좌와 연결해서 포지션, 손익, 진입 상태를 보여줄 예정입니다.</p>
           </Card>
         </Link>
         </div>

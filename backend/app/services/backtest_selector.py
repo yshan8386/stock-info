@@ -20,13 +20,11 @@ from app.schemas.backtest import (
 from app.services.backtest_strategies import get_strategy_definition
 
 _POSITION_SIZE_PCT = 0.95
-
-# 백테스트 엔진 warmup 기간 (일봉 기준 — minimum_history 기본값보다 넉넉하게)
 _WARMUP_MARKET_DAYS = 100
-_WARMUP_CALENDAR_DAYS = int(_WARMUP_MARKET_DAYS * 7 / 5) + 30  # 시장일 → 달력일 변환
+_WARMUP_CALENDAR_DAYS = int(_WARMUP_MARKET_DAYS * 7 / 5) + 30
+_OVERHEAT_LOOKBACK_DAYS = 20
+_OVERHEAT_RETURN_LIMIT_PCT = 20.0
 
-# (종목코드, 이름, 일평균거래대금, 기준가, 추세, 변동성, 시가총액)
-# KIS 키가 없을 때 사용하는 목업 후보 (시가총액 단위: 원)
 _MOCK_CANDIDATES = [
     ("005930", "삼성전자", 18_000_000_000, 73_000, 0.24, 0.9, 400_000_000_000_000),
     ("000660", "SK하이닉스", 14_500_000_000, 172_000, 0.31, 1.1, 105_000_000_000_000),
@@ -51,7 +49,7 @@ _MOCK_CANDIDATES = [
 class UniverseCandidate:
     item: StockSelectionItem
     candles: list[OhlcvCandle]
-    previous_day_volume: float
+    recent_return_pct: float
 
 
 def _avg(values: list[float], default: float = 0.0) -> float:
@@ -63,7 +61,6 @@ def _safe_pct(numerator: float, denominator: float) -> float:
 
 
 def _make_kis_client() -> Any | None:
-    """KIS 설정이 있으면 싱글톤 클라이언트를 반환하고, 없으면 None을 반환한다."""
     try:
         from app.config import get_settings
         from app.services.kis_client import get_client
@@ -85,14 +82,26 @@ def _ohlcv_rows_to_candles(rows: list[dict[str, Any]]) -> list[OhlcvCandle]:
     for row in rows:
         try:
             ts = datetime.strptime(row["date"], "%Y%m%d")
-            o, h, l, c = row["open"], row["high"], row["low"], row["close"]
-            volume = row["volume"]
-            if o <= 0 or h <= 0 or l <= 0 or c <= 0:
+            open_, high, low, close, volume = (
+                row["open"],
+                row["high"],
+                row["low"],
+                row["close"],
+                row["volume"],
+            )
+            if open_ <= 0 or high <= 0 or low <= 0 or close <= 0:
                 continue
-            if h < max(o, c) or l > min(o, c):
+            if high < max(open_, close) or low > min(open_, close):
                 continue
             candles.append(
-                OhlcvCandle(timestamp=ts, open=o, high=h, low=l, close=c, volume=volume)
+                OhlcvCandle(
+                    timestamp=ts,
+                    open=open_,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=volume,
+                )
             )
         except Exception:
             continue
@@ -163,25 +172,30 @@ def _build_candidate(
     name: str,
     candles: list[OhlcvCandle],
     market_cap: float | None,
-    planned_position_budget: float,
     selection_cutoff: date,
+    price_cap: float,
 ) -> UniverseCandidate | None:
     selection_candles = [
         candle for candle in candles if candle.timestamp.date() < selection_cutoff
     ]
-    if not selection_candles:
+    if len(selection_candles) < _OVERHEAT_LOOKBACK_DAYS + 1:
         return None
 
     selection_candle = selection_candles[-1]
-    recent = (
-        selection_candles[-20:] if len(selection_candles) >= 20 else selection_candles
+    if selection_candle.close > price_cap:
+        return None
+
+    reference_candle = selection_candles[-(_OVERHEAT_LOOKBACK_DAYS + 1)]
+    recent_return_pct = _safe_pct(
+        selection_candle.close - reference_candle.close, reference_candle.close
     )
+    if recent_return_pct > _OVERHEAT_RETURN_LIMIT_PCT:
+        return None
+
+    recent = selection_candles[-20:]
     avg_trade_amount = sum(candle.close * candle.volume for candle in recent) / max(
         len(recent), 1
     )
-    planned_qty = int(planned_position_budget // selection_candle.close)
-    if planned_qty < 1:
-        return None
 
     return UniverseCandidate(
         item=StockSelectionItem(
@@ -191,61 +205,36 @@ def _build_candidate(
             current_price=float(selection_candle.close),
             market_cap=float(market_cap) if market_cap is not None else None,
             allocated_budget=0.0,
-            max_buyable_quantity=planned_qty,
+            max_buyable_quantity=None,
             score=0.0,
             reason="",
         ),
         candles=candles,
-        previous_day_volume=float(selection_candle.volume),
+        recent_return_pct=round(recent_return_pct, 2),
     )
 
 
 def _rank_candidates(
     candidates: list[UniverseCandidate], max_symbols: int
 ) -> list[UniverseCandidate]:
-    market_cap_order = sorted(
-        candidates,
-        key=lambda candidate: (
-            candidate.item.market_cap or 0.0,
-            candidate.previous_day_volume,
-        ),
-        reverse=True,
-    )
-    volume_order = sorted(
-        candidates,
-        key=lambda candidate: (
-            candidate.previous_day_volume,
-            candidate.item.market_cap or 0.0,
-        ),
-        reverse=True,
-    )
-    market_cap_rank = {
-        candidate.item.symbol: index + 1
-        for index, candidate in enumerate(market_cap_order)
-    }
-    volume_rank = {
-        candidate.item.symbol: index + 1 for index, candidate in enumerate(volume_order)
-    }
-    universe_size = len(candidates)
-
-    for candidate in candidates:
-        symbol = candidate.item.symbol
-        cap_rank = market_cap_rank[symbol]
-        vol_rank = volume_rank[symbol]
-        cap_score = ((universe_size - cap_rank + 1) / universe_size) * 50
-        vol_score = ((universe_size - vol_rank + 1) / universe_size) * 50
-        candidate.item.score = round(cap_score + vol_score, 2)
-        candidate.item.reason = f"시총 {cap_rank}위 · 전일 거래량 {vol_rank}위"
-
     ranked = sorted(
         candidates,
         key=lambda candidate: (
-            candidate.item.score,
             candidate.item.market_cap or 0.0,
-            candidate.previous_day_volume,
+            candidate.item.avg_trade_amount,
+            -candidate.recent_return_pct,
         ),
         reverse=True,
     )
+
+    for index, candidate in enumerate(ranked, start=1):
+        candidate.item.score = round(
+            (candidate.item.market_cap or 0.0) / 1_000_000_000_000, 2
+        )
+        candidate.item.reason = (
+            f"시총 {index}위권 · 최근 20일 수익률 {candidate.recent_return_pct:.1f}%"
+        )
+
     return ranked[:max_symbols]
 
 
@@ -373,10 +362,7 @@ def _execute_strategies(
 
 
 def _build_response(
-    request: AutoBacktestRequest,
-    selected: list[UniverseCandidate],
-    *,
-    notes: list[str],
+    request: AutoBacktestRequest, selected: list[UniverseCandidate], *, notes: list[str]
 ) -> AutoBacktestResponse:
     strategy_runs = _execute_strategies(request, selected)
     primary_results = strategy_runs[0].results if strategy_runs else []
@@ -405,10 +391,8 @@ def _run_real_data_backtest(
         return None
 
     warmup_start = request.start_date - timedelta(days=_WARMUP_CALENDAR_DAYS)
-    planned_budget = request.initial_capital / max(request.max_symbols, 1)
-    planned_position_budget = planned_budget * _POSITION_SIZE_PCT
+    price_cap = request.initial_capital / 3
     generated: list[UniverseCandidate] = []
-    excluded_by_price = 0
 
     for rank_item in rank_items:
         symbol = rank_item["code"]
@@ -434,37 +418,31 @@ def _run_real_data_backtest(
             market_cap=(
                 float(rank_item["market_cap"]) if rank_item["market_cap"] else None
             ),
-            planned_position_budget=planned_position_budget,
             selection_cutoff=request.start_date,
+            price_cap=price_cap,
         )
         if candidate is None:
-            excluded_by_price += 1
             continue
         generated.append(candidate)
 
     selected = _rank_candidates(generated, request.max_symbols)
     notes = [
         "KIS OpenAPI 실데이터 기반 공통 종목선정 + 전략 비교 백테스트입니다.",
-        "후보 풀은 KIS 유동성 상위 종목에서 만들고, 실제 선택은 시가총액과 전일 거래량 종합 순위로 정렬합니다.",
+        "종목선정은 시가총액 내림차순을 우선하고, 주가가 초기자본의 1/3 이하여야 합니다.",
+        f"최근 {_OVERHEAT_LOOKBACK_DAYS}일 수익률이 {_OVERHEAT_RETURN_LIMIT_PCT:.0f}%를 넘는 과열 종목은 제외합니다.",
         f"전략 비교 대상: {', '.join(request.strategy_ids)}",
     ]
-    if excluded_by_price:
-        notes.append(
-            f"종목당 예산으로 1주도 살 수 없는 후보 {excluded_by_price}개는 제외했습니다."
-        )
     if not selected:
         notes.append(
-            "조건을 통과한 후보가 없습니다. 초기 자본을 늘리거나 후보 풀을 넓혀야 합니다."
+            "조건을 통과한 후보가 없습니다. 초기 자본을 늘리거나 제외 조건을 완화해야 합니다."
         )
 
     return _build_response(request, selected, notes=notes)
 
 
 def _run_mock_backtest(request: AutoBacktestRequest) -> AutoBacktestResponse:
-    planned_budget = request.initial_capital / max(request.max_symbols, 1)
-    planned_position_budget = planned_budget * _POSITION_SIZE_PCT
+    price_cap = request.initial_capital / 3
     generated: list[UniverseCandidate] = []
-    excluded_by_price = 0
 
     for index, (
         symbol,
@@ -489,11 +467,10 @@ def _run_mock_backtest(request: AutoBacktestRequest) -> AutoBacktestResponse:
             name=name,
             candles=candles,
             market_cap=float(market_cap),
-            planned_position_budget=planned_position_budget,
             selection_cutoff=request.start_date,
+            price_cap=price_cap,
         )
         if candidate is None:
-            excluded_by_price += 1
             continue
         generated.append(candidate)
 
@@ -501,16 +478,12 @@ def _run_mock_backtest(request: AutoBacktestRequest) -> AutoBacktestResponse:
     notes = [
         "[목업 모드] KIS_APP_KEY / KIS_APP_SECRET 환경변수가 없어 내장 가상 OHLCV로 동작합니다.",
         "실제 종목선정·전략 비교 결과를 얻으려면 .env에 KIS OpenAPI 키를 설정하세요.",
-        "공통 종목선정은 시가총액과 전일 거래량 종합 순위입니다.",
+        "종목선정은 시가총액 내림차순, 주가 상한, 최근 과열 제외 기준을 사용합니다.",
         f"전략 비교 대상: {', '.join(request.strategy_ids)}",
     ]
-    if excluded_by_price:
-        notes.append(
-            f"종목당 예산으로 1주도 살 수 없는 후보 {excluded_by_price}개는 제외했습니다."
-        )
     if not selected:
         notes.append(
-            "조건을 통과한 후보가 없습니다. 초기 자본을 늘리거나 후보 풀을 넓혀야 합니다."
+            "조건을 통과한 후보가 없습니다. 초기 자본을 늘리거나 제외 조건을 완화해야 합니다."
         )
 
     return _build_response(request, selected, notes=notes)

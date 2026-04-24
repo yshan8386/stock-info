@@ -152,7 +152,7 @@ export default function BacktestPage() {
           <p className="text-sm font-semibold text-accent">자동 종목선정</p>
           <h1 className="mt-1 text-3xl font-bold">백테스트</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            동일한 종목군에 여러 전략을 동시에 실행해서 수익률과 MDD를 비교합니다. 공통 종목군은 시가총액과 전일 거래량 종합 순위로 고릅니다.
+            동일한 종목군에 여러 전략을 동시에 실행해서 수익률과 MDD를 비교합니다. 공통 종목군은 시가총액 우선, 주가 상한, 최근 과열 제외 기준으로 고릅니다.
           </p>
         </div>
         <Button onClick={run} disabled={loading}>
@@ -269,7 +269,7 @@ export default function BacktestPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-bold">선정 종목</h2>
               <span className="rounded-md bg-infoSoft px-2.5 py-1 text-xs font-semibold text-info">
-                시총 + 전일 거래량 종합 점수
+                시총 우선 + 주가 상한 + 최근 과열 제외
               </span>
             </div>
             {result.selected.length > 0 ? (
@@ -295,6 +295,7 @@ export default function BacktestPage() {
                     <p className="mt-2 text-xs text-muted">매수 가능 {item.max_buyable_quantity ?? 0}주 · 점수 {item.score}</p>
                     <p className="mt-3 text-sm text-muted">평균 거래대금</p>
                     <p className="font-semibold">{currency.format(Math.round(item.avg_trade_amount))}원</p>
+                    <p className="mt-2 text-xs text-muted">{item.reason}</p>
                     {item.market_cap != null ? (
                       <>
                         <p className="mt-2 text-sm text-muted">시가총액</p>
@@ -306,7 +307,7 @@ export default function BacktestPage() {
               </div>
             ) : (
               <p className="mt-4 rounded-md border border-line bg-white px-4 py-3 text-sm text-muted">
-                조건을 통과한 종목이 없습니다. 거래대금 기준선을 낮추거나 초기 자본을 늘려 다시 실행하세요.
+                조건을 통과한 종목이 없습니다. 초기 자본을 늘리거나 과열 제외 기준을 완화해야 합니다.
               </p>
             )}
           </section>

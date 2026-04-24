@@ -149,20 +149,19 @@ def test_auto_backtest_selects_symbols_and_returns_support_resistance_amounts() 
     )
 
 
-def test_auto_backtest_filters_symbols_that_exceed_position_budget() -> None:
+def test_auto_backtest_filters_symbols_that_exceed_price_cap() -> None:
     result = run_auto_backtest(
         AutoBacktestRequest(
             start_date=datetime(2025, 1, 1).date(),
             end_date=datetime(2025, 12, 31).date(),
             initial_capital=600_000,
-            min_avg_trade_amount=1_000_000_000,
             max_symbols=5,
         )
     )
 
     assert result.selected
-    assert all((item.max_buyable_quantity or 0) >= 1 for item in result.selected)
-    assert "000660" not in {item.symbol for item in result.selected}
+    assert all(item.current_price <= 200_000 for item in result.selected)
+    assert "207940" not in {item.symbol for item in result.selected}
 
 
 def test_strategy_registry_contains_pullback_and_support_resistance() -> None:
