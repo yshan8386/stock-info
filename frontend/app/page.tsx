@@ -125,9 +125,9 @@ export default function HomePage() {
         <div className="grid gap-4 md:grid-cols-2">
         <Link href="/backtest">
           <Card className="h-full border-dashed">
-            <span className="rounded-md bg-warnSoft px-2.5 py-1 text-xs font-semibold text-warn">계정 필요</span>
+            <span className="rounded-md bg-accentSoft px-2.5 py-1 text-xs font-semibold text-accent">이용 가능</span>
             <h2 className="text-xl font-bold">백테스트</h2>
-            <p className="mt-4 text-muted">투자 전략을 과거 데이터로 검증하는 기능을 준비하고 있습니다.</p>
+            <p className="mt-4 text-muted">거래대금 기준으로 후보 종목을 고르고 지지선·저항선 전략을 과거 데이터로 검증합니다.</p>
           </Card>
         </Link>
 

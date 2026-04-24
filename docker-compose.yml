@@ -8,6 +8,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-pass}
     ports:
       - "5432:5432"
+      - "15432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./backups:/backups
@@ -25,9 +26,13 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
       COOKIE_SECURE: "false"
-      CORS_ORIGINS: '["http://localhost:3000"]'
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:3001","http://localhost:3002","http://localhost:3003"]'
       MOCK_CLAUDE: "true"
       TZ: Asia/Seoul
+      # KIS OpenAPI (백테스트 실데이터 — 없으면 내장 목업으로 동작)
+      KIS_APP_KEY: ${KIS_APP_KEY:-}
+      KIS_APP_SECRET: ${KIS_APP_SECRET:-}
+      KIS_BASE_URL: ${KIS_BASE_URL:-https://openapi.koreainvestment.com:9443}
     ports:
       - "8000:8000"
     depends_on:
@@ -43,9 +48,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me}
       COOKIE_SECURE: "false"
-      CORS_ORIGINS: '["http://localhost:3000"]'
+      CORS_ORIGINS: '["http://localhost:3000","http://localhost:3001","http://localhost:3002","http://localhost:3003"]'
       MOCK_CLAUDE: "true"
       TZ: Asia/Seoul
+      KIS_APP_KEY: ${KIS_APP_KEY:-}
+      KIS_APP_SECRET: ${KIS_APP_SECRET:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,4 +69,3 @@ services:
 
 volumes:
   pgdata:
-

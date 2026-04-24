@@ -1,9 +1,15 @@
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   color-scheme: light;
+  --font-base: "Pretendard Variable", Pretendard, "IBM Plex Sans KR", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-briefing: "Pretendard Variable", Pretendard, "IBM Plex Sans KR", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-backtest: "Pretendard Variable", Pretendard, "IBM Plex Sans KR", "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
 }
 
 * {
@@ -17,11 +23,46 @@ body {
     repeating-linear-gradient(90deg, rgba(21, 32, 27, 0.025) 0 1px, transparent 1px 84px),
     #f7f8f4;
   color: #17211d;
+  font-family: var(--font-base);
+  font-feature-settings: "kern", "tnum";
+  letter-spacing: 0;
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+.font-briefing {
+  font-family: var(--font-briefing);
+  letter-spacing: 0;
+  word-break: keep-all;
+}
+
+.font-briefing h1,
+.font-briefing h2,
+.font-briefing h3 {
+  font-weight: 700;
+}
+
+.font-briefing p,
+.font-briefing li {
+  line-height: 1.78;
+}
+
+.font-backtest,
+.font-backtest input,
+.font-backtest button,
+.font-backtest table {
+  font-family: var(--font-backtest);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.font-backtest h1,
+.font-backtest h2,
+.font-backtest h3 {
+  font-weight: 700;
 }
 
 @keyframes loading-bar {

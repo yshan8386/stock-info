@@ -20,7 +20,7 @@ export default function ArchivePage() {
   }, []);
 
   return (
-    <div className="space-y-5">
+    <div className="font-briefing space-y-5">
       <div>
         <Link href="/brief" className="text-sm text-muted">
           ← 오늘

@@ -20,7 +20,7 @@ const config: Config = {
         coralSoft: "#fdecea"
       },
       fontFamily: {
-        sans: ["Pretendard", "Inter", "system-ui", "sans-serif"]
+        sans: ["Pretendard Variable", "Pretendard", "IBM Plex Sans KR", "Noto Sans KR", "system-ui", "sans-serif"]
       }
     }
   },

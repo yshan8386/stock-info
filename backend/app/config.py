@@ -10,6 +10,10 @@ DEV_CORS_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://localhost:3001",
     "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+    "http://localhost:3003",
+    "http://127.0.0.1:3003",
 ]
 
 
@@ -27,6 +31,15 @@ class Settings(BaseSettings):
     timezone: str = "Asia/Seoul"
     mock_claude: bool = True
     scheduled_briefing_enabled: bool = False
+
+    # KIS OpenAPI (시세/거래대금 조회용 — 백테스트 종목선정에 사용)
+    kis_app_key: str | None = None
+    kis_app_secret: str | None = None
+    kis_base_url: str = "https://openapi.koreainvestment.com:9443"
+
+    @property
+    def kis_configured(self) -> bool:
+        return bool(self.kis_app_key and self.kis_app_secret)
 
     @field_validator("cors_origins", mode="before")
     @classmethod

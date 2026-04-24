@@ -22,8 +22,7 @@ def summary(db: Session = Depends(get_db)) -> DashboardSummary:
     total_terms = db.scalar(select(func.count(GlossaryTerm.id))) or 0
     return DashboardSummary(
         today_briefing=BriefingArchiveItem.model_validate(today_briefing) if today_briefing else None,
-        backtest=MenuStatus(status="coming_soon"),
+        backtest=MenuStatus(status="available"),
         position=MenuStatus(status="coming_soon"),
         glossary=GlossarySummary(total_terms=total_terms, recent_added=recent_terms),
     )
-

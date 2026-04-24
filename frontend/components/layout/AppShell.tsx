@@ -26,6 +26,8 @@ const pageTitles: Record<string, string> = {
   "/settings/profile": "설정"
 };
 
+const privatePathPrefixes = navItems.filter((item) => item.access === "private").map((item) => item.href);
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -38,10 +40,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isAuthPage) return;
+    const isPrivatePath = privatePathPrefixes.some((path) => pathname === path || pathname.startsWith(path));
     apiFetch<User>("/auth/me")
       .then(setUser)
-      .catch(() => setUser(null));
-  }, [isAuthPage]);
+      .catch(() => {
+        setUser(null);
+        if (isPrivatePath) {
+          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+        }
+      });
+  }, [isAuthPage, pathname, router]);
 
   async function logout() {
     await apiFetch("/auth/logout", { method: "POST" });
@@ -144,7 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="mx-auto max-w-6xl px-5 py-6 md:ml-64 md:px-8">{children}</main>
 
-      <nav className="fixed bottom-0 left-0 right-0 grid grid-cols-6 border-t border-line bg-white/95 backdrop-blur md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 grid grid-cols-5 border-t border-line bg-white/95 backdrop-blur md:hidden">
         {navItems.slice(0, 5).map((item) => {
           const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
           return (
