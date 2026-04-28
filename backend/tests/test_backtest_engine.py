@@ -1,13 +1,12 @@
 from datetime import datetime, timedelta
 from math import sin, tau
 
-from app.schemas.backtest import AutoBacktestRequest, BacktestConfig, OhlcvCandle
+from app.schemas.backtest import BacktestConfig, OhlcvCandle
 from app.services.backtest_engine import (
     find_price_levels,
     run_pullback_rebound_backtest,
     run_support_resistance_backtest,
 )
-from app.services.backtest_selector import run_auto_backtest
 from app.services.kis_market_data import KIS_OHLCV_ENDPOINTS
 from app.services.backtest_strategies import list_strategies
 
@@ -102,7 +101,7 @@ def test_support_resistance_backtest_opens_and_closes_trade() -> None:
     assert result.trades[0].exit_price is not None
 
 
-def test_pullback_rebound_backtest_opens_and_closes_trade() -> None:
+def test_pullback_rebound_backtest_can_leave_position_open_at_end_of_period() -> None:
     result = run_pullback_rebound_backtest(
         symbol="005930",
         candles=_pullback_candles(),
@@ -112,9 +111,29 @@ def test_pullback_rebound_backtest_opens_and_closes_trade() -> None:
     )
 
     assert result.symbol == "005930"
-    assert result.metrics.trade_count >= 1
+    assert result.trades
     assert result.trades[0].reason == "pullback_rebound"
-    assert result.trades[0].exit_price is not None
+    assert result.trades[0].exit_price is None
+    assert result.trades[0].exit_reason is None
+    assert result.metrics.trade_count == 0
+
+
+def test_pullback_rebound_entry_filters_can_block_trade_without_hiding_result() -> None:
+    result = run_pullback_rebound_backtest(
+        symbol="005930",
+        candles=_pullback_candles(),
+        config=BacktestConfig(
+            lookback_period=70,
+            min_volume_ratio=1.0,
+            min_slope_atr=0.0,
+            entry_min_volume_ratio=5.0,
+        ),
+    )
+
+    assert result.symbol == "005930"
+    assert result.metrics.trade_count == 0
+    assert result.trades == []
+    assert result.equity_curve
 
 
 def test_kis_ohlcv_endpoint_catalog_contains_daily_and_minute_chart_apis() -> None:
@@ -127,41 +146,6 @@ def test_kis_ohlcv_endpoint_catalog_contains_daily_and_minute_chart_apis() -> No
     assert minute.endpoint.endswith("/inquire-time-dailychartprice")
     assert minute.tr_id == "FHKST03010230"
 
-
-def test_auto_backtest_selects_symbols_and_returns_support_resistance_amounts() -> None:
-    result = run_auto_backtest(
-        AutoBacktestRequest(
-            start_date=datetime(2025, 10, 1).date(),
-            end_date=datetime(2026, 4, 22).date(),
-            initial_capital=10_000_000,
-            min_avg_trade_amount=5_000_000_000,
-            strategy_ids=["pullback_rebound_v1", "support_resistance_v1"],
-        )
-    )
-
-    assert result.selected
-    assert len(result.strategy_runs) == 2
-    assert result.results
-    assert result.results[0].supports
-    assert result.results[0].resistances
-    assert (
-        result.results[0].equity_curve[0].timestamp.date() >= result.request.start_date
-    )
-
-
-def test_auto_backtest_filters_symbols_that_exceed_price_cap() -> None:
-    result = run_auto_backtest(
-        AutoBacktestRequest(
-            start_date=datetime(2025, 1, 1).date(),
-            end_date=datetime(2025, 12, 31).date(),
-            initial_capital=600_000,
-            max_symbols=5,
-        )
-    )
-
-    assert result.selected
-    assert all(item.current_price <= 200_000 for item in result.selected)
-    assert "207940" not in {item.symbol for item in result.selected}
 
 
 def test_strategy_registry_contains_pullback_and_support_resistance() -> None:

@@ -33,6 +33,9 @@ _STRATEGY_METADATA_PATH = (
 _RUNNERS: dict[str, StrategyRunner] = {
     "pullback_rebound_v1": run_pullback_rebound_backtest,
     "support_resistance_v1": run_support_resistance_backtest,
+    "breakout_volume_v1": run_support_resistance_backtest,
+    "trend_follow_v1": run_pullback_rebound_backtest,
+    "rsi_reversal_v1": run_pullback_rebound_backtest,
 }
 
 

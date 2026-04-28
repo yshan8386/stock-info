@@ -15,3 +15,4 @@ pgdata/
 backups/*.sql
 .omx/
 backend/.kis_token_cache.json
+backend/data/stock_master_cache.json

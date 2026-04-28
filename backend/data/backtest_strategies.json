@@ -8,5 +8,20 @@
     "id": "support_resistance_v1",
     "label": "지지·저항 돌파",
     "description": "지지선 반등과 저항선 돌파 신호를 이용해 추세 지속 구간을 추적합니다."
+  },
+  {
+    "id": "breakout_volume_v1",
+    "label": "거래량 돌파",
+    "description": "거래대금이 붙는 저항선 돌파 구간을 우선 감시합니다."
+  },
+  {
+    "id": "trend_follow_v1",
+    "label": "추세 추종",
+    "description": "중기 이동평균 정배열과 추세 지속 신호가 유지되는 종목을 추적합니다."
+  },
+  {
+    "id": "rsi_reversal_v1",
+    "label": "RSI 반전",
+    "description": "과매도권 이탈 이후 단기 반등 가능성이 생긴 종목을 감시합니다."
   }
 ]

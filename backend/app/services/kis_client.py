@@ -84,6 +84,50 @@ class KisMarketClient:
         results.sort(key=lambda r: r["trade_amount"], reverse=True)
         return results[:count]
 
+    def get_stock_info(self, symbol: str) -> dict[str, Any] | None:
+        """
+        종목코드로 종목명·현재가를 조회한다.
+
+        반환: {"code": str, "name": str, "current_price": int} 또는 None
+        """
+        try:
+            data = self._get(
+                "/uapi/domestic-stock/v1/quotations/search-stock-info",
+                "CTPF1002R",
+                {"PRDT_TYPE_CD": "300", "PDNO": symbol},
+            )
+            output = data.get("output", {})
+            name = output.get("prdt_abrv_name", "").strip()
+            price = _to_int(output.get("thdt_clpr") or output.get("bfdy_clpr"))
+            if not name:
+                return None
+            return {"code": symbol, "name": name, "current_price": price}
+        except Exception:
+            return None
+
+    def get_stock_basic_info(self, symbol: str) -> dict[str, Any]:
+        """주식기본조회 API로 종목 메타데이터를 조회한다."""
+        data = self._get(
+            "/uapi/domestic-stock/v1/quotations/search-stock-info",
+            "CTPF1002R",
+            {"PRDT_TYPE_CD": "300", "PDNO": symbol},
+        )
+        output = data.get("output", {})
+        return output if isinstance(output, dict) else {}
+
+    def get_stock_quote(self, symbol: str) -> dict[str, Any]:
+        """주식현재가 시세 API로 현재 시세와 기본 지표를 조회한다."""
+        data = self._get(
+            "/uapi/domestic-stock/v1/quotations/inquire-price",
+            "FHKST01010100",
+            {
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": symbol,
+            },
+        )
+        output = data.get("output", {})
+        return output if isinstance(output, dict) else {}
+
     def get_daily_ohlcv(
         self,
         symbol: str,

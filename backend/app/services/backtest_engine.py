@@ -70,6 +70,56 @@ def _sma(values: list[float], period: int) -> float:
     return _avg(values[-period:], values[-1])
 
 
+def _rsi(values: list[float], period: int = 14) -> float | None:
+    if len(values) < period + 1:
+        return None
+    gains = 0.0
+    losses = 0.0
+    for index in range(len(values) - period, len(values)):
+        change = values[index] - values[index - 1]
+        if change >= 0:
+            gains += change
+        else:
+            losses -= change
+    avg_gain = gains / period
+    avg_loss = losses / period
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def _passes_entry_filters(
+    *,
+    config: BacktestConfig,
+    candle: OhlcvCandle,
+    closes: list[float],
+    volume_ratio: float,
+) -> bool:
+    if config.entry_trend_filter == "price_above_ma60":
+        if len(closes) < 60 or candle.close <= _sma(closes, 60):
+            return False
+    elif config.entry_trend_filter == "ma20_above_ma60":
+        if len(closes) < 60 or _sma(closes, 20) <= _sma(closes, 60):
+            return False
+    elif config.entry_trend_filter == "ma5_ma20_ma60_bullish":
+        if len(closes) < 60 or not (_sma(closes, 5) > _sma(closes, 20) > _sma(closes, 60)):
+            return False
+
+    current_rsi = _rsi(closes, 14)
+    if config.entry_rsi_min is not None:
+        if current_rsi is None or current_rsi < config.entry_rsi_min:
+            return False
+    if config.entry_rsi_max is not None:
+        if current_rsi is None or current_rsi > config.entry_rsi_max:
+            return False
+
+    if config.entry_min_volume_ratio is not None and volume_ratio < config.entry_min_volume_ratio:
+        return False
+
+    return True
+
+
 def _recent_swing_low(candles: list[OhlcvCandle], window: int = 10) -> float:
     if not candles:
         return 0.0
@@ -223,6 +273,10 @@ def run_support_resistance_backtest(
     avg_trade_amount: float | None = None,
     trade_start_date: date | None = None,
 ) -> BacktestResponse:
+    trailing_ma_period = 10
+    max_initial_stop_pct = 0.035
+    minimum_breakout_target_pct = 0.06
+    extended_reward_ratio = max(config.risk_reward_ratio, 3.2)
     ordered = sorted(candles, key=lambda candle: candle.timestamp)
     minimum_history = (
         max(config.lookback_period, config.slope_period, config.volume_period)
@@ -242,6 +296,7 @@ def run_support_resistance_backtest(
     notes: list[str] = [
         "신호는 해당 캔들 종가 기준으로 계산하고 다음 캔들 시가에 체결한 것으로 가정합니다.",
         "KIS 실거래 체결가, 호가 잔량, 부분 체결은 반영하지 않은 단순 백테스트입니다.",
+        "기간 종료 시점에는 강제 청산하지 않고, 미청산 포지션은 마지막 종가 기준 평가손익만 반영합니다.",
     ]
 
     for idx in range(minimum_history, len(ordered) - 1):
@@ -255,6 +310,8 @@ def run_support_resistance_backtest(
         recent_closes = [
             item.close for item in ordered[idx - config.slope_period + 1 : idx + 1]
         ]
+        history_closes = [item.close for item in history]
+        trailing_ma = _sma(history_closes, trailing_ma_period)
         atr = _atr(history)
         slope_atr = _linear_regression_slope(recent_closes) / atr if atr > 0 else 0.0
         avg_volume = _avg(
@@ -262,6 +319,7 @@ def run_support_resistance_backtest(
             1.0,
         )
         volume_ratio = candle.volume / avg_volume if avg_volume > 0 else 1.0
+        current_rsi = _rsi(history_closes, 14)
         is_in_trade_period = (
             trade_start_date is None or candle.timestamp.date() >= trade_start_date
         )
@@ -272,7 +330,11 @@ def run_support_resistance_backtest(
                 exit_reason = "stop_loss"
             elif candle.close >= open_trade.take_profit:
                 exit_reason = "take_profit"
-            elif slope_atr < -abs(config.min_slope_atr):
+            elif (
+                candle.close < trailing_ma
+                and previous.close < trailing_ma
+                and slope_atr < -max(abs(config.min_slope_atr), 0.12)
+            ):
                 exit_reason = "slope_reversal"
             elif (
                 support
@@ -290,6 +352,8 @@ def run_support_resistance_backtest(
                 open_trade.exit_at = next_candle.timestamp
                 open_trade.exit_price = _round_money(sell_price)
                 open_trade.exit_reason = exit_reason
+                open_trade.exit_rsi = round(current_rsi, 2) if current_rsi is not None else None
+                open_trade.exit_volume_ratio = round(volume_ratio, 3)
                 open_trade.pnl = _round_money(net - open_trade_cost)
                 open_trade.pnl_pct = round(
                     _safe_pct(net - open_trade_cost, open_trade_cost), 4
@@ -319,7 +383,14 @@ def run_support_resistance_backtest(
                 and slope_atr >= -abs(config.min_slope_atr)
             )
 
-            if breakout or bounce:
+            entry_filters_passed = _passes_entry_filters(
+                config=config,
+                candle=candle,
+                closes=history_closes,
+                volume_ratio=volume_ratio,
+            )
+
+            if entry_filters_passed and (breakout or bounce):
                 buy_price = next_candle.open * (1 + config.slippage_pct)
                 budget = cash * config.position_size_pct
                 quantity_to_buy = int(budget // buy_price)
@@ -329,23 +400,28 @@ def run_support_resistance_backtest(
                     cash -= entry_value + entry_fee
                     quantity = quantity_to_buy
 
+                    atr_stop = buy_price - max(atr * 1.2, buy_price * max_initial_stop_pct)
                     if support is not None:
-                        stop_loss = support.price * (1 - config.stop_loss_buffer_pct)
+                        support_stop = support.price * (1 - config.stop_loss_buffer_pct)
+                        stop_loss = max(support_stop, atr_stop)
                     else:
-                        stop_loss = buy_price - (_atr(history) * 1.5)
+                        stop_loss = atr_stop
 
-                    risk = max(buy_price - stop_loss, buy_price * 0.01)
+                    risk = max(buy_price - stop_loss, buy_price * 0.012)
                     next_resistance = _nearest_resistance(
                         resistances, candle.close * (1 + config.breakout_buffer_pct)
                     )
                     candidate_take_profit = (
                         next_resistance.price
-                        if next_resistance and next_resistance.price > buy_price
+                        if (
+                            next_resistance
+                            and next_resistance.price > buy_price * (1 + minimum_breakout_target_pct)
+                        )
                         else 0.0
                     )
                     take_profit = max(
                         candidate_take_profit,
-                        buy_price + risk * config.risk_reward_ratio,
+                        buy_price + risk * extended_reward_ratio,
                     )
 
                     trade = BacktestTrade(
@@ -353,6 +429,8 @@ def run_support_resistance_backtest(
                         entry_price=_round_money(buy_price),
                         quantity=quantity,
                         reason="resistance_breakout" if breakout else "support_bounce",
+                        entry_rsi=round(current_rsi, 2) if current_rsi is not None else None,
+                        entry_volume_ratio=round(volume_ratio, 3),
                         stop_loss=_round_money(stop_loss),
                         take_profit=_round_money(take_profit),
                     )
@@ -373,19 +451,6 @@ def run_support_resistance_backtest(
             )
 
     last_candle = ordered[-1]
-    if quantity > 0 and open_trade is not None:
-        sell_price = last_candle.close * (1 - config.slippage_pct)
-        gross = quantity * sell_price
-        fee = gross * (config.commission_rate + config.tax_rate)
-        net = gross - fee
-        cash += net
-        open_trade.exit_at = last_candle.timestamp
-        open_trade.exit_price = _round_money(sell_price)
-        open_trade.exit_reason = "end_of_data"
-        open_trade.pnl = _round_money(net - open_trade_cost)
-        open_trade.pnl_pct = round(_safe_pct(net - open_trade_cost, open_trade_cost), 4)
-        quantity = 0
-
     final_capital = cash + quantity * last_candle.close
     final_supports, final_resistances = find_price_levels(
         ordered[-config.lookback_period :], config
@@ -421,6 +486,9 @@ def run_pullback_rebound_backtest(
     avg_trade_amount: float | None = None,
     trade_start_date: date | None = None,
 ) -> BacktestResponse:
+    max_initial_stop_pct = 0.04
+    minimum_pullback_target_pct = 0.08
+    extended_reward_ratio = max(config.risk_reward_ratio, 3.0)
     ordered = sorted(candles, key=lambda candle: candle.timestamp)
     short_ma_period = 20
     long_ma_period = 60
@@ -440,6 +508,7 @@ def run_pullback_rebound_backtest(
     notes: list[str] = [
         "공통 종목군에서 상승 추세 속 눌림 이후 반등 신호만 추적합니다.",
         "진입은 반등 신호 다음 캔들 시가, 청산은 손절/추세훼손/목표가 기준입니다.",
+        "기간 종료 시점에는 강제 청산하지 않고, 미청산 포지션은 마지막 종가 기준 평가손익만 반영합니다.",
     ]
 
     for idx in range(minimum_history, len(ordered) - 1):
@@ -455,6 +524,7 @@ def run_pullback_rebound_backtest(
         closes = [item.close for item in history]
         short_ma = _sma(closes, short_ma_period)
         long_ma = _sma(closes, long_ma_period)
+        current_rsi = _rsi(closes, 14)
         atr = _atr(history)
         slope_atr = _linear_regression_slope(recent_closes) / atr if atr > 0 else 0.0
         avg_volume = _avg(
@@ -490,6 +560,8 @@ def run_pullback_rebound_backtest(
                 open_trade.exit_at = next_candle.timestamp
                 open_trade.exit_price = _round_money(sell_price)
                 open_trade.exit_reason = exit_reason
+                open_trade.exit_rsi = round(current_rsi, 2) if current_rsi is not None else None
+                open_trade.exit_volume_ratio = round(volume_ratio, 3)
                 open_trade.pnl = _round_money(net - open_trade_cost)
                 open_trade.pnl_pct = round(
                     _safe_pct(net - open_trade_cost, open_trade_cost), 4
@@ -525,7 +597,20 @@ def run_pullback_rebound_backtest(
                 and volume_ratio >= max(1.0, config.min_volume_ratio * 0.85)
             )
 
-            if uptrend and pullback and rebound and (near_support or near_short_ma):
+            entry_filters_passed = _passes_entry_filters(
+                config=config,
+                candle=candle,
+                closes=closes,
+                volume_ratio=volume_ratio,
+            )
+
+            if (
+                entry_filters_passed
+                and uptrend
+                and pullback
+                and rebound
+                and (near_support or near_short_ma)
+            ):
                 buy_price = next_candle.open * (1 + config.slippage_pct)
                 budget = cash * config.position_size_pct
                 quantity_to_buy = int(budget // buy_price)
@@ -537,19 +622,24 @@ def run_pullback_rebound_backtest(
 
                     swing_low = _recent_swing_low(trade_history, window=10)
                     support_price = support.price if support is not None else swing_low
-                    stop_loss = min(swing_low, support_price) * (
+                    structural_stop = min(swing_low, support_price) * (
                         1 - config.stop_loss_buffer_pct
                     )
-                    risk = max(buy_price - stop_loss, buy_price * 0.01)
+                    atr_stop = buy_price - max(atr * 1.1, buy_price * max_initial_stop_pct)
+                    stop_loss = max(structural_stop, atr_stop)
+                    risk = max(buy_price - stop_loss, buy_price * 0.012)
                     next_resistance = _nearest_resistance(resistances, buy_price)
                     candidate_take_profit = (
                         next_resistance.price
-                        if next_resistance and next_resistance.price > buy_price
+                        if (
+                            next_resistance
+                            and next_resistance.price > buy_price * (1 + minimum_pullback_target_pct)
+                        )
                         else recent_high
                     )
                     take_profit = max(
                         candidate_take_profit,
-                        buy_price + risk * config.risk_reward_ratio,
+                        buy_price + risk * extended_reward_ratio,
                     )
 
                     trade = BacktestTrade(
@@ -557,6 +647,8 @@ def run_pullback_rebound_backtest(
                         entry_price=_round_money(buy_price),
                         quantity=quantity,
                         reason="pullback_rebound",
+                        entry_rsi=round(current_rsi, 2) if current_rsi is not None else None,
+                        entry_volume_ratio=round(volume_ratio, 3),
                         stop_loss=_round_money(stop_loss),
                         take_profit=_round_money(take_profit),
                     )
@@ -577,19 +669,6 @@ def run_pullback_rebound_backtest(
             )
 
     last_candle = ordered[-1]
-    if quantity > 0 and open_trade is not None:
-        sell_price = last_candle.close * (1 - config.slippage_pct)
-        gross = quantity * sell_price
-        fee = gross * (config.commission_rate + config.tax_rate)
-        net = gross - fee
-        cash += net
-        open_trade.exit_at = last_candle.timestamp
-        open_trade.exit_price = _round_money(sell_price)
-        open_trade.exit_reason = "end_of_data"
-        open_trade.pnl = _round_money(net - open_trade_cost)
-        open_trade.pnl_pct = round(_safe_pct(net - open_trade_cost, open_trade_cost), 4)
-        quantity = 0
-
     final_capital = cash + quantity * last_candle.close
     final_supports, final_resistances = find_price_levels(
         ordered[-config.lookback_period :], config

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import auth, backtest, brief, dashboard, feeds, glossary, health
+from app.api import auth, backtest, brief, dashboard, feeds, glossary, health, position
 from app.config import get_settings
 from app.database import SessionLocal, create_db_and_tables
 from app.services.seed_data import seed_initial_data
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix=settings.api_prefix)
     app.include_router(dashboard.router, prefix=settings.api_prefix)
     app.include_router(backtest.router, prefix=settings.api_prefix)
+    app.include_router(position.router, prefix=settings.api_prefix)
     app.include_router(brief.router, prefix=settings.api_prefix)
     app.include_router(feeds.router, prefix=settings.api_prefix)
     app.include_router(glossary.router, prefix=settings.api_prefix)

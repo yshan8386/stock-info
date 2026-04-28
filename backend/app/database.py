@@ -58,7 +58,7 @@ def get_db() -> Generator[Session, None, None]:
 
 
 def create_db_and_tables() -> None:
-    from app.models import briefing, feed, glossary, news, user  # noqa: F401
+    from app.models import briefing, feed, glossary, news, position, user  # noqa: F401
 
     if database_url.startswith("postgresql") and settings.db_schema != "public":
         schema = _quote_postgres_identifier(settings.db_schema)
@@ -72,4 +72,9 @@ def create_db_and_tables() -> None:
             if not schema_exists:
                 connection.execute(text(f"CREATE SCHEMA {schema}"))
 
-    Base.metadata.create_all(bind=engine)
+    if database_url.startswith("postgresql"):
+        managed_table_names = {"trading_settings", "trading_signals", "trading_batch_runs"}
+        tables = [table for table in Base.metadata.sorted_tables if table.name not in managed_table_names]
+        Base.metadata.create_all(bind=engine, tables=tables)
+    else:
+        Base.metadata.create_all(bind=engine)

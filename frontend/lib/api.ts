@@ -1,4 +1,26 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+function resolveApiUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window === "undefined") {
+    return configured ?? "http://localhost:8000/api/v1";
+  }
+
+  const currentHost = window.location.hostname;
+  if (!configured) {
+    return `http://${currentHost}:8000/api/v1`;
+  }
+
+  try {
+    const url = new URL(configured);
+    if (["localhost", "127.0.0.1"].includes(url.hostname)) {
+      url.hostname = currentHost;
+      return url.toString().replace(/\/$/, "");
+    }
+  } catch {
+    // Keep the configured value if it is not a valid absolute URL.
+  }
+
+  return configured;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -10,7 +32,7 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${resolveApiUrl()}${path}`, {
     ...init,
     credentials: "include",
     headers: {
@@ -44,4 +66,3 @@ export function formatDate(date: string): string {
     weekday: "long"
   }).format(new Date(date));
 }
-
