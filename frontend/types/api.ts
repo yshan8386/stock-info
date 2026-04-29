@@ -62,55 +62,10 @@ export type PositionDashboard = {
     captured_signal_count: number;
     message: string;
   };
-  account: {
-    total_equity: number;
-    cash: number;
-    invested_amount: number;
-    day_pnl: number;
-    day_pnl_pct: number;
-    total_pnl: number;
-    total_pnl_pct: number;
-    buying_power: number;
-  };
   risk_statuses: {
     name: string;
     status: "ok" | "watch" | "blocked";
     message: string;
-  }[];
-  strategies: {
-    strategy_id: string;
-    strategy_label: string;
-    status: "active" | "watching" | "paused";
-    allocated_capital: number;
-    deployed_capital: number;
-    open_positions: number;
-    max_positions: number;
-    unrealized_pnl: number;
-    unrealized_pnl_pct: number;
-    next_action: string;
-  }[];
-  positions: {
-    symbol: string;
-    name: string;
-    strategy_id: string;
-    quantity: number;
-    average_price: number;
-    current_price: number;
-    market_value: number;
-    unrealized_pnl: number;
-    unrealized_pnl_pct: number;
-    stop_loss: number;
-    take_profit: number;
-    entry_reason: string;
-  }[];
-  watchlist: {
-    symbol: string;
-    name: string;
-    strategy_id: string;
-    signal: string;
-    current_price: number;
-    trigger_price: number;
-    risk_note: string;
   }[];
   recent_signals: TradingSignal[];
 };

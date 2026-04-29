@@ -4,59 +4,10 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class AccountSummary(BaseModel):
-    total_equity: int
-    cash: int
-    invested_amount: int
-    day_pnl: int
-    day_pnl_pct: float
-    total_pnl: int
-    total_pnl_pct: float
-    buying_power: int
-
-
 class RiskStatus(BaseModel):
     name: str
     status: Literal["ok", "watch", "blocked"]
     message: str
-
-
-class LiveStrategyStatus(BaseModel):
-    strategy_id: str
-    strategy_label: str
-    status: Literal["active", "watching", "paused"]
-    allocated_capital: int
-    deployed_capital: int
-    open_positions: int
-    max_positions: int
-    unrealized_pnl: int
-    unrealized_pnl_pct: float
-    next_action: str
-
-
-class LivePosition(BaseModel):
-    symbol: str
-    name: str
-    strategy_id: str
-    quantity: int
-    average_price: int
-    current_price: int
-    market_value: int
-    unrealized_pnl: int
-    unrealized_pnl_pct: float
-    stop_loss: int
-    take_profit: int
-    entry_reason: str
-
-
-class WatchSignal(BaseModel):
-    symbol: str
-    name: str
-    strategy_id: str
-    signal: str
-    current_price: int
-    trigger_price: int
-    risk_note: str
 
 
 class TradingSettingsResponse(BaseModel):
@@ -110,9 +61,5 @@ class PositionDashboard(BaseModel):
     as_of: datetime
     settings: TradingSettingsResponse
     batch: BatchStatus
-    account: AccountSummary
     risk_statuses: list[RiskStatus]
-    strategies: list[LiveStrategyStatus]
-    positions: list[LivePosition]
-    watchlist: list[WatchSignal]
     recent_signals: list[TradingSignalResponse]

@@ -1,4 +1,4 @@
-from app.api.position import DEFAULT_STRATEGY_IDS, SIGNAL_UNIVERSE
+from app.api.position import DEFAULT_STRATEGY_IDS
 from app.services.backtest_strategies import list_strategies
 
 
@@ -11,8 +11,7 @@ def test_position_strategies_include_new_live_dashboard_choices() -> None:
     assert "rsi_reversal_v1" in strategy_ids
 
 
-def test_signal_universe_uses_registered_strategy_ids() -> None:
-    strategy_ids = {strategy.id for strategy in list_strategies()}
+def test_live_dashboard_does_not_ship_synthetic_signal_universe() -> None:
+    from app.api import position
 
-    assert SIGNAL_UNIVERSE
-    assert {signal["strategy_id"] for signal in SIGNAL_UNIVERSE}.issubset(strategy_ids)
+    assert not hasattr(position, "SIGNAL_UNIVERSE")

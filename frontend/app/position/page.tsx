@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
 import { apiFetch } from "@/lib/api";
 import type { PositionDashboard, StrategyInfo } from "@/types/api";
@@ -37,23 +36,10 @@ const DEFAULT_DASHBOARD: PositionDashboard = {
     captured_signal_count: 0,
     message: "배치가 꺼져 있습니다.",
   },
-  account: {
-    total_equity: 0,
-    cash: 0,
-    invested_amount: 0,
-    day_pnl: 0,
-    day_pnl_pct: 0,
-    total_pnl: 0,
-    total_pnl_pct: 0,
-    buying_power: 0,
-  },
   risk_statuses: [
     { name: "자동 주문", status: "blocked", message: "읽기 전용 모드입니다." },
     { name: "계좌 연결", status: "watch", message: "실전 계좌 연결 전입니다." },
   ],
-  strategies: [],
-  positions: [],
-  watchlist: [],
   recent_signals: [],
 };
 
@@ -65,30 +51,10 @@ function won(value: number): string {
   return `${currencyFormatter.format(value)}원`;
 }
 
-function signedWon(value: number): string {
-  return `${value >= 0 ? "+" : "-"}${won(Math.abs(value))}`;
-}
-
-function signedPct(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
-function pnlColor(value: number): string {
-  if (value > 0) return "text-accent";
-  if (value < 0) return "text-coral";
-  return "text-muted";
-}
-
 function riskTone(status: PositionDashboard["risk_statuses"][number]["status"]): string {
   if (status === "ok") return "border-accentSoft bg-accentSoft text-accent";
   if (status === "watch") return "border-warnSoft bg-warnSoft text-warn";
   return "border-coralSoft bg-coralSoft text-coral";
-}
-
-function strategyStatusLabel(status: PositionDashboard["strategies"][number]["status"]): string {
-  if (status === "active") return "운용 중";
-  if (status === "watching") return "관찰 중";
-  return "일시 중지";
 }
 
 function signalStatusLabel(status: string): string {
@@ -175,11 +141,6 @@ export default function PositionPage() {
   }
 
   const strategyNames = new Map(strategies.map((strategy) => [strategy.id, strategy.label]));
-  const investedRatio =
-    dashboard.account.total_equity > 0
-      ? Math.round((dashboard.account.invested_amount / dashboard.account.total_equity) * 100)
-      : 0;
-
   return (
     <div className="font-backtest space-y-6">
       <section className="surface overflow-hidden rounded-md p-5 md:p-6">
@@ -209,35 +170,6 @@ export default function PositionPage() {
         {dashboardError && (
           <p className="mt-4 rounded-md bg-coralSoft px-4 py-3 text-sm font-semibold text-coral">{dashboardError}</p>
         )}
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <p className="text-sm text-muted">총 평가자산</p>
-          <p className="mt-2 text-2xl font-bold">{won(dashboard.account.total_equity)}</p>
-          <p className={`mt-2 text-sm font-semibold ${pnlColor(dashboard.account.total_pnl)}`}>
-            {signedWon(dashboard.account.total_pnl)} {signedPct(dashboard.account.total_pnl_pct)}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-muted">금일 손익</p>
-          <p className={`mt-2 text-2xl font-bold ${pnlColor(dashboard.account.day_pnl)}`}>
-            {signedWon(dashboard.account.day_pnl)}
-          </p>
-          <p className={`mt-2 text-sm font-semibold ${pnlColor(dashboard.account.day_pnl_pct)}`}>
-            {signedPct(dashboard.account.day_pnl_pct)}
-          </p>
-        </Card>
-        <Card>
-          <p className="text-sm text-muted">투입 비중</p>
-          <p className="mt-2 text-2xl font-bold">{investedRatio}%</p>
-          <p className="mt-2 text-sm text-muted">{won(dashboard.account.invested_amount)} 운용 중</p>
-        </Card>
-        <Card>
-          <p className="text-sm text-muted">주문 가능 현금</p>
-          <p className="mt-2 text-2xl font-bold">{won(dashboard.account.buying_power)}</p>
-          <p className="mt-2 text-sm text-muted">현금 {won(dashboard.account.cash)}</p>
-        </Card>
       </section>
 
       <section className="surface rounded-md p-5">
@@ -339,86 +271,6 @@ export default function PositionPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="surface rounded-md p-5">
-          <h2 className="text-xl font-bold">전략별 운용 상태</h2>
-          <p className="mt-1 text-sm text-muted">백테스트 전략을 그대로 실전 운용 단위로 봅니다.</p>
-          <div className="mt-4 grid gap-3">
-            {dashboard.strategies.map((strategy) => {
-              const deployedPct =
-                strategy.allocated_capital > 0
-                  ? Math.round((strategy.deployed_capital / strategy.allocated_capital) * 100)
-                  : 0;
-              return (
-                <div key={strategy.strategy_id} className="rounded-md border border-line bg-white p-4">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{strategy.strategy_label}</p>
-                      <p className="mt-1 text-xs text-muted">{strategy.strategy_id}</p>
-                    </div>
-                    <span className="rounded-md bg-infoSoft px-2.5 py-1 text-xs font-semibold text-info">
-                      {strategyStatusLabel(strategy.status)}
-                    </span>
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <div>
-                      <p className="text-xs text-muted">투입</p>
-                      <p className="font-semibold">{won(strategy.deployed_capital)}</p>
-                      <p className="text-xs text-muted">배정 대비 {deployedPct}%</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted">보유</p>
-                      <p className="font-semibold">
-                        {strategy.open_positions}/{strategy.max_positions}개
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted">평가손익</p>
-                      <p className={`font-semibold ${pnlColor(strategy.unrealized_pnl)}`}>
-                        {signedWon(strategy.unrealized_pnl)} {signedPct(strategy.unrealized_pnl_pct)}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="mt-4 rounded-md bg-background px-3 py-2 text-sm text-muted">{strategy.next_action}</p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="surface rounded-md p-5">
-          <h2 className="text-xl font-bold">관심 신호</h2>
-          <p className="mt-1 text-sm text-muted">진입 전 확인해야 할 트리거입니다.</p>
-          <div className="mt-4 grid gap-3">
-            {dashboard.watchlist.map((item) => (
-              <div key={item.symbol} className="rounded-md border border-line bg-white p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">
-                      {item.name} <span className="text-xs text-muted">{item.symbol}</span>
-                    </p>
-                    <p className="mt-1 text-sm text-muted">{strategyNames.get(item.strategy_id) ?? item.strategy_id}</p>
-                  </div>
-                  <span className="rounded-md bg-warnSoft px-2.5 py-1 text-xs font-semibold text-warn">대기</span>
-                </div>
-                <p className="mt-3 text-sm font-semibold">{item.signal}</p>
-                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                  <p>
-                    <span className="block text-xs text-muted">현재가</span>
-                    {won(item.current_price)}
-                  </p>
-                  <p>
-                    <span className="block text-xs text-muted">트리거</span>
-                    {won(item.trigger_price)}
-                  </p>
-                </div>
-                <p className="mt-3 rounded-md bg-background px-3 py-2 text-xs text-muted">{item.risk_note}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       <section className="surface rounded-md p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -473,53 +325,6 @@ export default function PositionPage() {
               </div>
             ))
           )}
-        </div>
-      </section>
-
-      <section className="surface rounded-md p-5">
-        <h2 className="text-xl font-bold">보유 포지션</h2>
-        <p className="mt-1 text-sm text-muted">전략, 손절가, 목표가를 함께 확인합니다.</p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[860px] border-separate border-spacing-0 text-sm">
-            <thead>
-              <tr className="text-left text-xs text-muted">
-                <th className="border-b border-line px-3 py-2">종목</th>
-                <th className="border-b border-line px-3 py-2">전략</th>
-                <th className="border-b border-line px-3 py-2 text-right">수량</th>
-                <th className="border-b border-line px-3 py-2 text-right">평균/현재</th>
-                <th className="border-b border-line px-3 py-2 text-right">평가금액</th>
-                <th className="border-b border-line px-3 py-2 text-right">손익</th>
-                <th className="border-b border-line px-3 py-2 text-right">손절/목표</th>
-                <th className="border-b border-line px-3 py-2">진입 근거</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dashboard.positions.map((position) => (
-                <tr key={`${position.strategy_id}-${position.symbol}`}>
-                  <td className="border-b border-line px-3 py-3">
-                    <p className="font-semibold">{position.name}</p>
-                    <p className="text-xs text-muted">{position.symbol}</p>
-                  </td>
-                  <td className="border-b border-line px-3 py-3">{strategyNames.get(position.strategy_id) ?? position.strategy_id}</td>
-                  <td className="border-b border-line px-3 py-3 text-right">{position.quantity}</td>
-                  <td className="border-b border-line px-3 py-3 text-right">
-                    <p>{won(position.average_price)}</p>
-                    <p className="text-xs text-muted">{won(position.current_price)}</p>
-                  </td>
-                  <td className="border-b border-line px-3 py-3 text-right font-semibold">{won(position.market_value)}</td>
-                  <td className={`border-b border-line px-3 py-3 text-right font-semibold ${pnlColor(position.unrealized_pnl)}`}>
-                    <p>{signedWon(position.unrealized_pnl)}</p>
-                    <p className="text-xs">{signedPct(position.unrealized_pnl_pct)}</p>
-                  </td>
-                  <td className="border-b border-line px-3 py-3 text-right">
-                    <p className="text-coral">{won(position.stop_loss)}</p>
-                    <p className="text-xs text-accent">{won(position.take_profit)}</p>
-                  </td>
-                  <td className="border-b border-line px-3 py-3 text-muted">{position.entry_reason}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </section>
 

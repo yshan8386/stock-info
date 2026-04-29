@@ -12,26 +12,20 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models import TradingBatchRun, TradingSettings, TradingSignal, User
 from app.schemas.position import (
-    AccountSummary,
     BatchRunResponse,
     BatchStatus,
-    LivePosition,
-    LiveStrategyStatus,
     PositionDashboard,
     RiskStatus,
     TradingSettingsResponse,
     TradingSettingsUpdate,
     TradingSignalResponse,
-    WatchSignal,
 )
 from app.services.backtest_strategies import list_strategies
 
 router = APIRouter(prefix="/position", tags=["position"], dependencies=[Depends(get_current_user)])
 
 DEFAULT_STRATEGY_IDS = ["pullback_rebound_v1", "support_resistance_v1"]
-_FALLBACK_SIGNAL_ID = 0
 _FALLBACK_SETTINGS: dict[int, "VolatileSettings"] = {}
-_FALLBACK_SIGNALS: dict[int, list[TradingSignalResponse]] = {}
 _FALLBACK_LAST_RUN: dict[int, BatchStatus] = {}
 
 
@@ -43,61 +37,9 @@ class VolatileSettings:
     selected_strategy_ids: list[str] = field(default_factory=lambda: list(DEFAULT_STRATEGY_IDS))
     batch_interval_seconds: int = 10
 
-SIGNAL_UNIVERSE = [
-    {
-        "symbol": "005930",
-        "name": "삼성전자",
-        "strategy_id": "pullback_rebound_v1",
-        "signal": "20일선 눌림 후 거래량 회복",
-        "current_price": 72_100,
-        "trigger_price": 72_500,
-        "risk_note": "반도체 대형주 변동성 확인",
-    },
-    {
-        "symbol": "000660",
-        "name": "SK하이닉스",
-        "strategy_id": "support_resistance_v1",
-        "signal": "전고점 돌파 후 지지 확인",
-        "current_price": 234_900,
-        "trigger_price": 236_000,
-        "risk_note": "갭 상승 이후 추격 진입 주의",
-    },
-    {
-        "symbol": "068270",
-        "name": "셀트리온",
-        "strategy_id": "breakout_volume_v1",
-        "signal": "거래대금 동반 박스권 상단 돌파",
-        "current_price": 181_200,
-        "trigger_price": 184_000,
-        "risk_note": "제약 업종 변동성 확대",
-    },
-    {
-        "symbol": "051910",
-        "name": "LG화학",
-        "strategy_id": "trend_follow_v1",
-        "signal": "중기 이동평균 재정렬 대기",
-        "current_price": 364_500,
-        "trigger_price": 371_000,
-        "risk_note": "거래대금 회복 필요",
-    },
-    {
-        "symbol": "035720",
-        "name": "카카오",
-        "strategy_id": "rsi_reversal_v1",
-        "signal": "RSI 과매도 탈출 후보",
-        "current_price": 50_350,
-        "trigger_price": 51_200,
-        "risk_note": "뉴스 이벤트 민감도 높음",
-    },
-]
-
 
 def _now() -> datetime:
     return datetime.now(ZoneInfo(get_settings().timezone))
-
-
-def _strategy_labels() -> dict[str, str]:
-    return {strategy.id: strategy.label for strategy in list_strategies()}
 
 
 def _get_or_create_settings(db: Session, user_id: int) -> TradingSettings:
@@ -186,7 +128,7 @@ def _recent_signals(db: Session, user_id: int, limit: int = 12) -> list[TradingS
         return [_signal_response(signal) for signal in signals]
     except SQLAlchemyError:
         db.rollback()
-        return _FALLBACK_SIGNALS.get(user_id, [])[:limit]
+        return []
 
 
 @router.get("/settings", response_model=TradingSettingsResponse)
@@ -229,95 +171,38 @@ def run_position_batch(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> BatchRunResponse:
-    global _FALLBACK_SIGNAL_ID
     settings = _get_or_create_settings(db, user.id)
     if not settings.batch_enabled:
         return BatchRunResponse(status="skipped", captured_signal_count=0, signals=[], message="배치 실행이 꺼져 있습니다.")
 
     selected_ids = settings.selected_strategy_ids or DEFAULT_STRATEGY_IDS
-    execution_mode = "live_order_requested" if settings.live_trading_enabled else "signal_only"
-    status = "ready_for_live_order" if settings.live_trading_enabled else "captured"
     started_at = _now()
-    created: list[TradingSignal] = []
-    cycle = started_at.second % max(len(SIGNAL_UNIVERSE), 1)
-    candidates = SIGNAL_UNIVERSE[cycle:] + SIGNAL_UNIVERSE[:cycle]
-
-    for index, item in enumerate(candidates):
-        if item["strategy_id"] not in selected_ids:
-            continue
-        current_price = float(item["current_price"]) + (started_at.second % 5) * 10
-        confidence = round(0.72 + min(index, 3) * 0.04, 2)
-        if not isinstance(settings, TradingSettings):
-            _FALLBACK_SIGNAL_ID += 1
-            response = TradingSignalResponse(
-                id=_FALLBACK_SIGNAL_ID,
-                strategy_id=item["strategy_id"],
-                symbol=item["symbol"],
-                name=item["name"],
-                side="buy",
-                signal=item["signal"],
-                current_price=current_price,
-                trigger_price=float(item["trigger_price"]),
-                confidence=confidence,
-                execution_mode=execution_mode,
-                status=status,
-                risk_note=item["risk_note"],
-                created_at=started_at,
-            )
-            _FALLBACK_SIGNALS.setdefault(user.id, []).insert(0, response)
-            if len(_FALLBACK_SIGNALS[user.id]) > 50:
-                _FALLBACK_SIGNALS[user.id] = _FALLBACK_SIGNALS[user.id][:50]
-            if len(_FALLBACK_SIGNALS[user.id]) >= 3:
-                break
-            continue
-        signal = TradingSignal(
-            user_id=user.id,
-            strategy_id=item["strategy_id"],
-            symbol=item["symbol"],
-            name=item["name"],
-            side="buy",
-            signal=item["signal"],
-            current_price=current_price,
-            trigger_price=float(item["trigger_price"]),
-            confidence=confidence,
-            execution_mode=execution_mode,
-            status=status,
-            risk_note=item["risk_note"],
-        )
-        db.add(signal)
-        created.append(signal)
-        if len(created) >= 3:
-            break
 
     if not isinstance(settings, TradingSettings):
-        captured = _FALLBACK_SIGNALS.get(user.id, [])[:3]
         batch_status = BatchStatus(
             is_running=settings.batch_enabled,
             last_run_at=_now(),
             last_run_status="completed",
-            captured_signal_count=len(captured),
-            message="새 실전투자 테이블이 없어 임시 저장소에 시그널을 보관했습니다.",
+            captured_signal_count=0,
+            message="실전 시그널 생성기가 아직 연결되지 않아 새 시그널이 없습니다.",
         )
         _FALLBACK_LAST_RUN[user.id] = batch_status
-        message = "실투자 요청 대상으로 표시했습니다." if settings.live_trading_enabled else "실투자 없이 시그널만 임시 저장했습니다."
-        return BatchRunResponse(status="completed", captured_signal_count=len(captured), signals=captured, message=message)
+        return BatchRunResponse(status="completed", captured_signal_count=0, signals=[], message=batch_status.message)
 
     run = TradingBatchRun(
         user_id=user.id,
         status="completed",
         live_trading_enabled=settings.live_trading_enabled,
         selected_strategy_ids=selected_ids,
-        captured_signal_count=len(created),
+        captured_signal_count=0,
         started_at=started_at,
         finished_at=_now(),
     )
     db.add(run)
     db.commit()
-    for signal in created:
-        db.refresh(signal)
 
-    message = "실투자 요청 대상으로 표시했습니다." if settings.live_trading_enabled else "실투자 없이 시그널만 DB에 저장했습니다."
-    return BatchRunResponse(status="completed", captured_signal_count=len(created), signals=[_signal_response(signal) for signal in created], message=message)
+    message = "실전 시그널 생성기가 아직 연결되지 않아 새 시그널이 없습니다."
+    return BatchRunResponse(status="completed", captured_signal_count=0, signals=[], message=message)
 
 
 @router.get("/dashboard", response_model=PositionDashboard)
@@ -327,48 +212,7 @@ def get_position_dashboard(
 ) -> PositionDashboard:
     settings = _get_or_create_settings(db, user.id)
     selected_ids = settings.selected_strategy_ids or DEFAULT_STRATEGY_IDS
-    strategy_labels = _strategy_labels()
     recent_signals = _recent_signals(db, user.id)
-    running_adjustment = (_now().second % 8) * 1_250 if settings.batch_enabled else 0
-
-    account = AccountSummary(
-        total_equity=2_083_500 + running_adjustment,
-        cash=683_500,
-        invested_amount=1_400_000,
-        day_pnl=18_500 + running_adjustment,
-        day_pnl_pct=round((18_500 + running_adjustment) / 2_065_000 * 100, 2),
-        total_pnl=83_500 + running_adjustment,
-        total_pnl_pct=round((83_500 + running_adjustment) / 2_000_000 * 100, 2),
-        buying_power=683_500,
-    )
-    live_strategies = [
-        LiveStrategyStatus(
-            strategy_id=strategy_id,
-            strategy_label=strategy_labels.get(strategy_id, strategy_id),
-            status="active" if settings.batch_enabled else "paused",
-            allocated_capital=1_000_000,
-            deployed_capital=720_000 if strategy_id == "pullback_rebound_v1" else 420_000,
-            open_positions=2 if strategy_id == "pullback_rebound_v1" else 1,
-            max_positions=3,
-            unrealized_pnl=58_200 if strategy_id == "pullback_rebound_v1" else 25_300,
-            unrealized_pnl_pct=8.08 if strategy_id == "pullback_rebound_v1" else 3.72,
-            next_action="배치가 켜져 있어 다음 주기에 진입 후보를 갱신합니다." if settings.batch_enabled else "배치 실행이 꺼져 있습니다.",
-        )
-        for strategy_id in selected_ids
-    ]
-    watchlist = [
-        WatchSignal(
-            symbol=item["symbol"],
-            name=item["name"],
-            strategy_id=item["strategy_id"],
-            signal=item["signal"],
-            current_price=float(item["current_price"]),
-            trigger_price=float(item["trigger_price"]),
-            risk_note=item["risk_note"],
-        )
-        for item in SIGNAL_UNIVERSE
-        if item["strategy_id"] in selected_ids
-    ][:5]
 
     return PositionDashboard(
         mode="live" if settings.live_trading_enabled else "paper",
@@ -376,7 +220,6 @@ def get_position_dashboard(
         as_of=_now(),
         settings=_settings_response(settings),
         batch=_latest_batch_status(db, user.id, settings),
-        account=account,
         risk_statuses=[
             RiskStatus(
                 name="배치 실행",
@@ -391,23 +234,5 @@ def get_position_dashboard(
             RiskStatus(name="전략 선택", status="ok", message=f"{len(selected_ids)}개 전략 감시 중"),
             RiskStatus(name="주문 어댑터", status="watch", message="KIS 주문 연동 전까지 주문 요청 상태로만 기록합니다."),
         ],
-        strategies=live_strategies,
-        positions=[
-            LivePosition(
-                symbol="005930",
-                name="삼성전자",
-                strategy_id="pullback_rebound_v1",
-                quantity=8,
-                average_price=70_200,
-                current_price=72_100 + running_adjustment / 100,
-                market_value=576_800 + running_adjustment,
-                unrealized_pnl=15_200 + running_adjustment,
-                unrealized_pnl_pct=round((15_200 + running_adjustment) / 561_600 * 100, 2),
-                stop_loss=67_800,
-                take_profit=77_400,
-                entry_reason="눌림 후 거래량 회복",
-            )
-        ],
-        watchlist=watchlist,
         recent_signals=recent_signals,
     )
