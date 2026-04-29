@@ -68,7 +68,7 @@ export default function HomePage() {
               </div>
             </div>
             <p className="rounded-md bg-warnSoft px-3 py-2 text-sm leading-6 text-warn">
-              백테스트와 투자 현황은 개인 데이터가 필요해서 로그인 후 열립니다.
+              백테스트와 실전투자는 개인 데이터가 필요해서 로그인 후 열립니다.
             </p>
           </div>
         </div>
@@ -134,8 +134,8 @@ export default function HomePage() {
         <Link href="/position">
           <Card className="h-full border-dashed">
             <span className="rounded-md bg-coralSoft px-2.5 py-1 text-xs font-semibold text-coral">계정 필요</span>
-            <h2 className="text-xl font-bold">투자 현황</h2>
-            <p className="mt-4 text-muted">백테스트 전략을 실전 계좌와 연결해서 포지션, 손익, 진입 상태를 보여줄 예정입니다.</p>
+            <h2 className="text-xl font-bold">실전투자</h2>
+            <p className="mt-4 text-muted">배치 실행, 실투자 여부, 전략 선택과 계좌 손익 상태를 한 화면에서 확인합니다.</p>
           </Card>
         </Link>
         </div>

@@ -13,7 +13,7 @@ const navItems = [
   { href: "/brief", label: "데일리 브리핑", icon: "newspaper", access: "public" },
   { href: "/glossary", label: "투자 개념", icon: "book", access: "public" },
   { href: "/backtest", label: "백테스트", icon: "chart", access: "private" },
-  { href: "/position", label: "투자 현황", icon: "briefcase", access: "private" },
+  { href: "/position", label: "실전투자", icon: "briefcase", access: "private" },
   { href: "/settings/profile", label: "설정", icon: "settings", access: "private" }
 ] as const;
 
@@ -22,7 +22,7 @@ const pageTitles: Record<string, string> = {
   "/brief": "데일리 브리핑",
   "/glossary": "투자 개념 정리",
   "/backtest": "백테스트",
-  "/position": "투자 현황",
+  "/position": "실전투자",
   "/settings/profile": "설정"
 };
 
