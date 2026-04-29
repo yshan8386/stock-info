@@ -25,6 +25,9 @@ services:
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5}
       MOCK_CLAUDE: ${MOCK_CLAUDE:-false}
       SCHEDULED_BRIEFING_ENABLED: ${SCHEDULED_BRIEFING_ENABLED:-false}
+      KIS_APP_KEY: ${KIS_APP_KEY:-}
+      KIS_APP_SECRET: ${KIS_APP_SECRET:-}
+      KIS_BASE_URL: ${KIS_BASE_URL:-https://openapi.koreainvestment.com:9443}
       TZ: Asia/Seoul
     networks:
       - supabase
@@ -43,6 +46,9 @@ services:
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-haiku-4-5}
       MOCK_CLAUDE: ${MOCK_CLAUDE:-false}
       SCHEDULED_BRIEFING_ENABLED: ${SCHEDULED_BRIEFING_ENABLED:-false}
+      KIS_APP_KEY: ${KIS_APP_KEY:-}
+      KIS_APP_SECRET: ${KIS_APP_SECRET:-}
+      KIS_BASE_URL: ${KIS_BASE_URL:-https://openapi.koreainvestment.com:9443}
       TZ: Asia/Seoul
     networks:
       - supabase
